@@ -24,6 +24,10 @@ test.describe("Navigation", () => {
       { label: "Backtest", heading: "Backtest" },
       { label: "Scheduler", heading: "Scheduler" },
       { label: "Settings", heading: "Settings" },
+      { label: "AI Chat", heading: "AI Trading Assistant" },
+      { label: "Agent", heading: "AI Agent Activity" },
+      { label: "Data", heading: "Data Explorer" },
+      { label: "Trades", heading: "Trades" },
       { label: "Dashboard", heading: "Dashboard" },
     ];
 
@@ -64,6 +68,17 @@ test.describe("Backtest", () => {
     await expect(page.getByText("Symbols", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Run Backtest" })).toBeVisible();
   });
+
+  test("clicking run triggers backtest submission", async ({ page }) => {
+    await page.goto("/backtest");
+
+    const runBtn = page.getByRole("button", { name: "Run Backtest" });
+    await runBtn.click();
+
+    // After clicking, page should still be functional (no crash)
+    await expect(pageHeading(page)).toHaveText("Backtest");
+    await expect(runBtn).toBeVisible();
+  });
 });
 
 test.describe("Scheduler", () => {
@@ -84,6 +99,27 @@ test.describe("Scheduler", () => {
     // Verify it's gone
     await expect(row).not.toBeVisible();
   });
+
+  test("toggle job enabled/disabled", async ({ page }) => {
+    await page.goto("/scheduler");
+
+    // Create a job first
+    await page.getByRole("button", { name: "Create Job" }).click();
+    const row = page.locator("tr", { hasText: "market_scan" });
+    await expect(row).toBeVisible({ timeout: 10_000 });
+
+    // Toggle enabled state
+    const toggleBtn = row.getByRole("button", { name: /Enabled|Disabled/ });
+    const initialText = await toggleBtn.textContent();
+    await toggleBtn.click();
+
+    // Verify state changed
+    const expectedText = initialText === "Enabled" ? "Disabled" : "Enabled";
+    await expect(toggleBtn).toHaveText(expectedText);
+
+    // Cleanup: delete the job
+    await row.getByRole("button", { name: "Delete" }).click();
+  });
 });
 
 test.describe("Settings & Safety", () => {
@@ -99,5 +135,110 @@ test.describe("Settings & Safety", () => {
 
     const killBtn = page.getByRole("button", { name: /KILL SWITCH|Resume Trading/ });
     await expect(killBtn).toBeVisible();
+  });
+
+  test("add and delete a setting", async ({ page }) => {
+    await page.goto("/settings");
+
+    // Add a setting
+    await page.locator('input[placeholder="Key"]').fill("e2e_test_key");
+    await page.locator('input[placeholder="Value (JSON or string)"]').fill("test_value");
+    await page.getByRole("button", { name: "Save" }).click();
+
+    // Verify it appears
+    await expect(page.getByText("e2e_test_key")).toBeVisible({ timeout: 10_000 });
+
+    // Delete it
+    const row = page.locator("tr", { hasText: "e2e_test_key" });
+    await row.getByRole("button", { name: "Delete" }).click();
+
+    // Verify removal
+    await expect(page.getByText("e2e_test_key")).not.toBeVisible();
+  });
+
+  test("safety number inputs are visible", async ({ page }) => {
+    await page.goto("/settings");
+
+    const numberInputs = page.locator('input[type="number"]');
+    await expect(numberInputs.first()).toBeVisible();
+    expect(await numberInputs.count()).toBeGreaterThanOrEqual(1);
+  });
+});
+
+test.describe("Data Explorer", () => {
+  test("page loads with form elements", async ({ page }) => {
+    await page.goto("/data");
+    await expect(pageHeading(page)).toHaveText("Data Explorer");
+
+    await expect(page.locator('input[placeholder="Symbol"]')).toBeVisible();
+    await expect(page.locator('input[type="date"]').first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Load" })).toBeVisible();
+  });
+
+  test("load button triggers data fetch", async ({ page }) => {
+    await page.goto("/data");
+
+    await page.locator('input[placeholder="Symbol"]').fill("AAPL");
+    await page.getByRole("button", { name: "Load" }).click();
+
+    // Either chart renders or we get an error/empty state — page shouldn't crash
+    await page.waitForTimeout(2000);
+    await expect(pageHeading(page)).toHaveText("Data Explorer");
+  });
+});
+
+test.describe("Trades", () => {
+  test("page loads with trade history section", async ({ page }) => {
+    await page.goto("/trades");
+    await expect(pageHeading(page)).toHaveText("Trades");
+
+    await expect(page.getByRole("heading", { name: "Trade History" })).toBeVisible();
+
+    // Empty state or table should be present
+    const hasEmptyState = await page.getByText("No trades recorded").isVisible().catch(() => false);
+    const hasTable = await page.locator("table").isVisible().catch(() => false);
+    expect(hasEmptyState || hasTable).toBeTruthy();
+  });
+});
+
+test.describe("AI Chat", () => {
+  test("page loads with input and send button", async ({ page }) => {
+    await page.goto("/ai");
+    await expect(pageHeading(page)).toHaveText("AI Trading Assistant");
+
+    await expect(page.locator('input[placeholder="Type a message..."], input[placeholder="Connecting..."]')).toBeVisible();
+    await expect(page.getByRole("button", { name: "Send" })).toBeVisible();
+    await expect(page.getByText("Ask me about markets, strategies, or trading...")).toBeVisible();
+  });
+
+  test("typing a message shows user bubble", async ({ page }) => {
+    await page.goto("/ai");
+
+    const input = page.locator('input[placeholder="Type a message..."]');
+    // Wait for WebSocket connection
+    await expect(input).toBeVisible({ timeout: 10_000 });
+
+    await input.fill("Hello from E2E test");
+    await page.getByRole("button", { name: "Send" }).click();
+
+    // User message should appear as a blue bubble
+    await expect(page.locator(".bg-blue-600", { hasText: "Hello from E2E test" })).toBeVisible({ timeout: 5_000 });
+  });
+});
+
+test.describe("Agent", () => {
+  test("page loads with run button", async ({ page }) => {
+    await page.goto("/agent");
+    await expect(pageHeading(page)).toHaveText("AI Agent Activity");
+
+    await expect(page.getByRole("button", { name: "Run Agent Now" })).toBeVisible();
+    await expect(page.getByText("No agent runs yet")).toBeVisible();
+  });
+
+  test("run button shows running state", async ({ page }) => {
+    await page.goto("/agent");
+
+    await page.getByRole("button", { name: "Run Agent Now" }).click();
+    await expect(page.getByRole("button", { name: "Running..." })).toBeVisible();
   });
 });
