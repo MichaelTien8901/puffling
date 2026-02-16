@@ -46,6 +46,47 @@ puffling/
 - AI agent uses LLM tool-use to invoke Puffin capabilities via backend API
 - Broker actions always require explicit user confirmation
 
+## Building & Running
+
+### Docker (recommended)
+```bash
+docker compose up -d backend frontend    # Start backend + frontend
+docker compose down                       # Stop all services
+```
+
+### Backend (standalone)
+```bash
+pip install -e .                          # Install puffling + dependencies
+pip install -e ~/projects/puffin          # Install puffin (editable)
+uvicorn backend.main:app --reload         # Run on http://localhost:8000
+```
+
+### Frontend (standalone)
+```bash
+cd frontend
+npm install
+npm run dev                               # Dev server on http://localhost:3000
+npm run build                             # Production build
+```
+
+## Testing
+
+### Backend unit tests
+```bash
+pytest backend/tests/ -v
+```
+
+### Frontend E2E tests (Playwright)
+Requires backend + frontend running (via Docker or standalone):
+```bash
+docker compose up -d backend frontend     # Ensure services are up
+cd frontend
+npx playwright install --with-deps        # First time only
+npx playwright test --reporter=list       # Run all 18 E2E tests
+```
+
+E2E tests cover all 9 pages: Dashboard, Strategies, Backtest, Scheduler, Settings, Data Explorer, Trades, AI Chat, Agent.
+
 ## GitHub Pages / docs/ Setup
 - Reference: ~/projects/puffin/docs/ for Jekyll tutorial site (separate concern)
 - Puffling does not host its own docs site — documentation lives in the README and OpenSpec artifacts
