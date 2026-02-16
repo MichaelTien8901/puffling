@@ -57,12 +57,12 @@
 - [x] 8.3 Add real-time alert feed to Dashboard via /ws/alerts
 - [x] 8.4 Create Agent Activity page with run history, reports, and actions
 - [x] 8.5 Add safety controls panel with kill switch to Settings page
-- [ ] 8.6 Create Scheduler management UI for job CRUD
+- [x] 8.6 Create Scheduler management UI for job CRUD
 
 ## 9. Testing
 
 - [x] 9.1 Add tests for scheduler service (job CRUD, persistence)
-- [ ] 9.2 Add tests for strategy runner (signal generation, mode behavior, safety enforcement)
+- [x] 9.2 Add tests for strategy runner (signal generation, mode behavior, safety enforcement)
 - [x] 9.3 Add tests for portfolio manager (drift calculation, rebalance trade generation)
 - [x] 9.4 Add tests for alert system (condition evaluation, trigger persistence)
 - [x] 9.5 Add tests for safety controls (kill switch, limits enforcement)

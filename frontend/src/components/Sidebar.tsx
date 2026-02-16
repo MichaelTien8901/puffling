@@ -11,6 +11,7 @@ const navItems = [
   { href: "/agent", label: "Agent" },
   { href: "/data", label: "Data" },
   { href: "/trades", label: "Trades" },
+  { href: "/scheduler", label: "Scheduler" },
   { href: "/settings", label: "Settings" },
 ];
 
