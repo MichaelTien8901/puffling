@@ -3,6 +3,7 @@ from backend.models.ai_conversation import AIConversation
 from backend.models.alert_config import AlertConfig
 from backend.models.alert_history import AlertHistory
 from backend.models.backtest_result import BacktestResult
+from backend.models.optimization_job import OptimizationJob
 from backend.models.portfolio_goal import PortfolioGoal
 from backend.models.scheduled_job import ScheduledJob
 from backend.models.settings import Settings
@@ -17,6 +18,7 @@ __all__ = [
     "AlertConfig",
     "AlertHistory",
     "BacktestResult",
+    "OptimizationJob",
     "PortfolioGoal",
     "ScheduledJob",
     "Settings",
