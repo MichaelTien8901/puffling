@@ -76,7 +76,7 @@ docker compose run --rm test-backend sh -c \
 pytest tests/ -v
 ```
 
-### Frontend E2E tests (23 tests)
+### Frontend E2E tests (28 tests)
 
 Requires backend + frontend running:
 ```bash
@@ -131,7 +131,7 @@ npx playwright test --reporter=list -g "kill switch"
 | 29 | test_strategy_runner.py | test_activate_deactivate | Strategy activation toggle |
 | 30 | test_strategy_runner.py | test_auto_trade_blocked_by_kill_switch | Kill switch blocks auto-trade |
 
-#### Frontend E2E tests (23) — `cd frontend && npx playwright test --reporter=list`
+#### Frontend E2E tests (28) — `cd frontend && npx playwright test --reporter=list`
 
 Requires: `docker compose up -d backend frontend`
 
@@ -153,10 +153,15 @@ Requires: `docker compose up -d backend frontend`
 | 14 | Data Explorer | page loads with form elements | Symbol input, date, Load button |
 | 15 | Data Explorer | load button triggers data fetch | Page stable after Load click |
 | 16 | Data Explorer | chart renders with mocked OHLCV data | Canvas element from mocked data |
-| 17 | Trades | page loads with trade history section | Trade History heading, table/empty state |
-| 18 | Trades | populated table and P&L with mocked data | Mocked trades in table + P&L Summary |
-| 19 | AI Chat | page loads with input and send button | Input + Send button visible |
-| 20 | AI Chat | typing a message shows user bubble | User message as blue bubble |
-| 21 | Agent | page loads with run button | Run Agent Now button + empty state |
-| 22 | Agent | run button shows running state | Button text → "Running..." |
-| 23 | Agent | logs display with mocked agent data | Mocked log card with analysis text |
+| 17 | Optimize | page loads with form elements | Strategy selector, Run button, param grid |
+| 18 | Optimize | strategy type selector changes param grid | Grid params update per strategy type |
+| 19 | Optimize | advanced settings toggle | Show/hide walk-forward splits and train ratio |
+| 20 | Optimize | results table displays with mocked optimization data | Ranked results with Sharpe, action buttons |
+| 21 | Optimize | optimization history displays with mocked jobs | Job list with status and best Sharpe |
+| 22 | Trades | page loads with trade history section | Trade History heading, table/empty state |
+| 23 | Trades | populated table and P&L with mocked data | Mocked trades in table + P&L Summary |
+| 24 | AI Chat | page loads with input and send button | Input + Send button visible |
+| 25 | AI Chat | typing a message shows user bubble | User message as blue bubble |
+| 26 | Agent | page loads with run button | Run Agent Now button + empty state |
+| 27 | Agent | run button shows running state | Button text → "Running..." |
+| 28 | Agent | logs display with mocked agent data | Mocked log card with analysis text |

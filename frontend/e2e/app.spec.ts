@@ -246,6 +246,120 @@ test.describe("Data Explorer", () => {
   });
 });
 
+test.describe("Optimize", () => {
+  test("page loads with form elements", async ({ page }) => {
+    await page.goto("/optimize");
+    await expect(pageHeading(page)).toHaveText("Optimize");
+
+    await expect(page.locator("select")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Run Optimization" })).toBeVisible();
+    // Default momentum grid params should be pre-filled
+    await expect(page.getByText("short_window")).toBeVisible();
+    await expect(page.getByText("long_window")).toBeVisible();
+  });
+
+  test("strategy type selector changes param grid", async ({ page }) => {
+    await page.goto("/optimize");
+
+    // Default is momentum
+    await expect(page.getByText("short_window")).toBeVisible();
+
+    // Switch to mean reversion
+    await page.locator("select").selectOption("mean_reversion");
+    await expect(page.getByText("num_std")).toBeVisible();
+    await expect(page.getByText("zscore_entry")).toBeVisible();
+
+    // Switch to stat arb
+    await page.locator("select").selectOption("stat_arb");
+    await expect(page.getByText("lookback")).toBeVisible();
+    await expect(page.getByText("entry_zscore")).toBeVisible();
+  });
+
+  test("advanced settings toggle", async ({ page }) => {
+    await page.goto("/optimize");
+
+    // Advanced settings hidden by default
+    await expect(page.getByText("Walk-Forward Splits")).not.toBeVisible();
+
+    // Show advanced
+    await page.getByText("Show Advanced Settings").click();
+    await expect(page.getByText("Walk-Forward Splits")).toBeVisible();
+    await expect(page.getByText("Train Ratio")).toBeVisible();
+
+    // Hide again
+    await page.getByText("Hide Advanced Settings").click();
+    await expect(page.getByText("Walk-Forward Splits")).not.toBeVisible();
+  });
+
+  test("results table displays with mocked optimization data", async ({ page }) => {
+    // Mock the submit endpoint to return a job_id
+    await page.route("**/api/optimize/strategy", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ job_id: 1, status: "running", total_combinations: 18 }),
+      })
+    );
+
+    // Mock the poll endpoint to return completed results
+    await page.route("**/api/optimize/1", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "complete",
+          results: [
+            { rank: 1, params: { short_window: 10, long_window: 50, ma_type: "ema" }, mean_sharpe: 1.45, mean_return: 0.12, max_drawdown: -0.08, mean_win_rate: 0.58 },
+            { rank: 2, params: { short_window: 20, long_window: 100, ma_type: "sma" }, mean_sharpe: 1.20, mean_return: 0.09, max_drawdown: -0.10, mean_win_rate: 0.55 },
+          ],
+        }),
+      })
+    );
+
+    // Mock job list
+    await page.route("**/api/optimize/", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([]),
+      })
+    );
+
+    await page.goto("/optimize");
+    await page.getByRole("button", { name: "Run Optimization" }).click();
+
+    // Results table should appear after polling
+    await expect(page.getByRole("heading", { name: "Results" })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("1.450")).toBeVisible();
+    await expect(page.getByText("1.200")).toBeVisible();
+
+    // Action buttons on result rows
+    await expect(page.getByRole("button", { name: "Backtest" }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save as Strategy" }).first()).toBeVisible();
+  });
+
+  test("optimization history displays with mocked jobs", async ({ page }) => {
+    await page.route("**/api/optimize/", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([
+          { id: 1, job_type: "strategy", strategy_type: "momentum", status: "complete", created_at: "2024-06-01T10:00:00", best_sharpe: 1.45 },
+          { id: 2, job_type: "strategy", strategy_type: "mean_reversion", status: "running", created_at: "2024-06-02T10:00:00", best_sharpe: null },
+        ]),
+      })
+    );
+
+    await page.goto("/optimize");
+
+    await expect(page.getByRole("heading", { name: "Optimization History" })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("cell", { name: "momentum" })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "mean_reversion" })).toBeVisible();
+    await expect(page.getByText("1.450")).toBeVisible();
+    await expect(page.getByText("View Results")).toBeVisible();
+  });
+});
+
 test.describe("Trades", () => {
   test("page loads with trade history section", async ({ page }) => {
     await page.goto("/trades");
