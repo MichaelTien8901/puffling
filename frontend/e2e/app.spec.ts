@@ -79,6 +79,26 @@ test.describe("Backtest", () => {
     await expect(pageHeading(page)).toHaveText("Backtest");
     await expect(runBtn).toBeVisible();
   });
+
+  test("results display after mocked backtest run", async ({ page }) => {
+    await page.route("**/api/backtest/", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          metrics: { total_return: 0.15, sharpe_ratio: 1.2 },
+        }),
+      })
+    );
+
+    await page.goto("/backtest");
+    await page.getByRole("button", { name: "Run Backtest" }).click();
+
+    await expect(page.getByRole("heading", { name: "Results" })).toBeVisible({ timeout: 10_000 });
+    const pre = page.locator("pre");
+    await expect(pre).toContainText("total_return");
+    await expect(pre).toContainText("sharpe_ratio");
+  });
 });
 
 test.describe("Scheduler", () => {
@@ -137,6 +157,22 @@ test.describe("Settings & Safety", () => {
     await expect(killBtn).toBeVisible();
   });
 
+  test("kill switch toggles between kill and resume", async ({ page }) => {
+    await page.goto("/settings");
+
+    const killBtn = page.getByRole("button", { name: "KILL SWITCH" });
+    await expect(killBtn).toBeVisible({ timeout: 10_000 });
+
+    // Activate kill switch
+    await killBtn.click();
+    const resumeBtn = page.getByRole("button", { name: "Resume Trading" });
+    await expect(resumeBtn).toBeVisible({ timeout: 10_000 });
+
+    // Resume trading
+    await resumeBtn.click();
+    await expect(page.getByRole("button", { name: "KILL SWITCH" })).toBeVisible({ timeout: 10_000 });
+  });
+
   test("add and delete a setting", async ({ page }) => {
     await page.goto("/settings");
 
@@ -185,6 +221,29 @@ test.describe("Data Explorer", () => {
     await page.waitForTimeout(2000);
     await expect(pageHeading(page)).toHaveText("Data Explorer");
   });
+
+  test("chart renders with mocked OHLCV data", async ({ page }) => {
+    await page.route("**/api/data/ohlcv**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: [
+            { Date: "2024-01-02", Open: 180, High: 185, Low: 179, Close: 184 },
+            { Date: "2024-01-03", Open: 184, High: 188, Low: 183, Close: 187 },
+            { Date: "2024-01-04", Open: 187, High: 189, Low: 185, Close: 186 },
+          ],
+        }),
+      })
+    );
+
+    await page.goto("/data");
+    await page.locator('input[placeholder="Symbol"]').fill("AAPL");
+    await page.getByRole("button", { name: "Load" }).click();
+
+    // TradingView lightweight-charts renders to canvas
+    await expect(page.locator("canvas").first()).toBeVisible({ timeout: 10_000 });
+  });
 });
 
 test.describe("Trades", () => {
@@ -198,6 +257,36 @@ test.describe("Trades", () => {
     const hasEmptyState = await page.getByText("No trades recorded").isVisible().catch(() => false);
     const hasTable = await page.locator("table").isVisible().catch(() => false);
     expect(hasEmptyState || hasTable).toBeTruthy();
+  });
+
+  test("populated table and P&L with mocked data", async ({ page }) => {
+    await page.route("**/api/monitor/trades", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([
+          { symbol: "SPY", side: "BUY", qty: 10, price: 450.0, timestamp: "2024-06-01T10:00:00" },
+          { symbol: "AAPL", side: "SELL", qty: 5, price: 190.0, timestamp: "2024-06-01T11:00:00" },
+        ]),
+      })
+    );
+    await page.route("**/api/monitor/pnl", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ total_pnl: 1250.0, win_rate: 0.65 }),
+      })
+    );
+
+    await page.goto("/trades");
+
+    // Verify table has trade data
+    await expect(page.getByText("SPY")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("BUY")).toBeVisible();
+    await expect(page.getByText("AAPL")).toBeVisible();
+
+    // Verify P&L section
+    await expect(page.getByRole("heading", { name: "P&L Summary" })).toBeVisible();
   });
 });
 
@@ -236,9 +325,36 @@ test.describe("Agent", () => {
   });
 
   test("run button shows running state", async ({ page }) => {
+    // Mock a slow agent run so we can observe the "Running..." state
+    await page.route("**/api/agent/run", (route) =>
+      new Promise((resolve) => setTimeout(() => resolve(route.fulfill({ status: 200, contentType: "application/json", body: "{}" })), 5000))
+    );
+
     await page.goto("/agent");
 
     await page.getByRole("button", { name: "Run Agent Now" }).click();
     await expect(page.getByRole("button", { name: "Running..." })).toBeVisible();
+  });
+
+  test("logs display with mocked agent data", async ({ page }) => {
+    await page.route("**/api/agent/logs", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([
+          {
+            id: 1,
+            run_at: "2024-06-01T09:00:00",
+            report: JSON.stringify({ analysis: "Market is bullish" }),
+            actions_taken: "[]",
+          },
+        ]),
+      })
+    );
+
+    await page.goto("/agent");
+
+    await expect(page.getByText("Market is bullish")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("Run #1")).toBeVisible();
   });
 });

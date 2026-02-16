@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { createChart, IChartApi, ISeriesApi, CandlestickData, LineData } from "lightweight-charts";
+import { createChart, IChartApi, ISeriesApi, CandlestickData, LineData, CandlestickSeries, LineSeries } from "lightweight-charts";
 
 interface ChartProps {
   type?: "candlestick" | "line";
@@ -28,11 +28,11 @@ export default function Chart({ type = "candlestick", data, height = 400 }: Char
     chartRef.current = chart;
 
     if (type === "candlestick") {
-      const series = chart.addCandlestickSeries();
+      const series = chart.addSeries(CandlestickSeries);
       series.setData(data as CandlestickData[]);
       seriesRef.current = series;
     } else {
-      const series = chart.addLineSeries({ color: "#2563eb" });
+      const series = chart.addSeries(LineSeries, { color: "#2563eb" });
       series.setData(data as LineData[]);
       seriesRef.current = series;
     }
