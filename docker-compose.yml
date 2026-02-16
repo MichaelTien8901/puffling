@@ -38,6 +38,21 @@ services:
     profiles:
       - test
 
+  test-e2e:
+    image: mcr.microsoft.com/playwright:v1.52.0-noble
+    command: npx playwright test --reporter=list
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    working_dir: /app
+    depends_on:
+      - backend
+      - frontend
+    environment:
+      - CI=true
+    profiles:
+      - test
+
   test-frontend:
     build: ./frontend
     command: npm test
