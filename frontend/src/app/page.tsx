@@ -2,66 +2,126 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { useWebSocket } from "@/hooks/useWebSocket";
 
 export default function Dashboard() {
   const [positions, setPositions] = useState<Record<string, unknown>[]>([]);
   const [trades, setTrades] = useState<Record<string, unknown>[]>([]);
+  const [activeStrategies, setActiveStrategies] = useState<Record<string, unknown>[]>([]);
+  const [goals, setGoals] = useState<Record<string, unknown>[]>([]);
+  const [alerts, setAlerts] = useState<Record<string, unknown>[]>([]);
+  const { lastMessage: alertMsg } = useWebSocket("/ws/alerts");
 
   useEffect(() => {
     api.get<Record<string, unknown>[]>("/api/broker/positions").then(setPositions).catch(() => {});
     api.get<Record<string, unknown>[]>("/api/monitor/trades").then(setTrades).catch(() => {});
+    api.get<Record<string, unknown>[]>("/api/strategies/live/active").then(setActiveStrategies).catch(() => {});
+    api.get<Record<string, unknown>[]>("/api/portfolio/goals/").then(setGoals).catch(() => {});
+    api.get<Record<string, unknown>[]>("/api/alerts/history").then(setAlerts).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (alertMsg) {
+      const data = JSON.parse(alertMsg);
+      setAlerts((prev) => [data, ...prev].slice(0, 20));
+    }
+  }, [alertMsg]);
 
   return (
     <div>
       <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Portfolio */}
         <div className="bg-white rounded-lg shadow p-4">
           <h2 className="text-lg font-semibold mb-3">Portfolio</h2>
           {positions.length === 0 ? (
             <p className="text-gray-500">No positions</p>
           ) : (
             <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-500">
-                  <th>Symbol</th><th>Qty</th><th>Avg Price</th><th>Current</th>
-                </tr>
-              </thead>
+              <thead><tr className="text-left text-gray-500"><th>Symbol</th><th>Qty</th><th>Avg</th><th>Current</th></tr></thead>
               <tbody>
                 {positions.map((p, i) => (
                   <tr key={i} className="border-t">
-                    <td>{String(p.symbol)}</td>
-                    <td>{String(p.qty)}</td>
-                    <td>{String(p.avg_price)}</td>
-                    <td>{String(p.current_price)}</td>
+                    <td>{String(p.symbol)}</td><td>{String(p.qty)}</td>
+                    <td>{String(p.avg_price)}</td><td>{String(p.current_price)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
         </div>
+
+        {/* Active Strategies */}
+        <div className="bg-white rounded-lg shadow p-4">
+          <h2 className="text-lg font-semibold mb-3">Active Strategies</h2>
+          {activeStrategies.length === 0 ? (
+            <p className="text-gray-500">No active strategies</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead><tr className="text-left text-gray-500"><th>Name</th><th>Type</th><th>Mode</th></tr></thead>
+              <tbody>
+                {activeStrategies.map((s, i) => (
+                  <tr key={i} className="border-t">
+                    <td>{String(s.name)}</td><td>{String(s.strategy_type)}</td>
+                    <td><span className={`px-2 py-0.5 rounded text-xs ${s.mode === "auto-trade" ? "bg-red-100 text-red-700" : s.mode === "alert" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-600"}`}>{String(s.mode)}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Portfolio Goals */}
+        <div className="bg-white rounded-lg shadow p-4">
+          <h2 className="text-lg font-semibold mb-3">Portfolio Goals</h2>
+          {goals.length === 0 ? (
+            <p className="text-gray-500">No goals set</p>
+          ) : (
+            <ul className="text-sm space-y-2">
+              {goals.map((g, i) => (
+                <li key={i} className="flex justify-between border-b pb-1">
+                  <span>{String(g.name)}</span>
+                  <span className="text-gray-500">drift: {String(g.drift_threshold)}%</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Recent Trades */}
         <div className="bg-white rounded-lg shadow p-4">
           <h2 className="text-lg font-semibold mb-3">Recent Trades</h2>
           {trades.length === 0 ? (
             <p className="text-gray-500">No trades yet</p>
           ) : (
             <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-500">
-                  <th>Symbol</th><th>Side</th><th>Qty</th><th>Price</th>
-                </tr>
-              </thead>
+              <thead><tr className="text-left text-gray-500"><th>Symbol</th><th>Side</th><th>Qty</th><th>Price</th></tr></thead>
               <tbody>
                 {trades.map((t, i) => (
                   <tr key={i} className="border-t">
-                    <td>{String(t.symbol)}</td>
-                    <td>{String(t.side)}</td>
-                    <td>{String(t.qty)}</td>
-                    <td>{String(t.price)}</td>
+                    <td>{String(t.symbol)}</td><td>{String(t.side)}</td>
+                    <td>{String(t.qty)}</td><td>{String(t.price)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          )}
+        </div>
+
+        {/* Alert Feed */}
+        <div className="bg-white rounded-lg shadow p-4 md:col-span-2">
+          <h2 className="text-lg font-semibold mb-3">Recent Alerts</h2>
+          {alerts.length === 0 ? (
+            <p className="text-gray-500">No alerts</p>
+          ) : (
+            <ul className="text-sm space-y-1 max-h-48 overflow-y-auto">
+              {alerts.map((a, i) => (
+                <li key={i} className="flex justify-between border-b pb-1">
+                  <span>{String(a.message)}</span>
+                  <span className="text-gray-400 text-xs">{String(a.triggered_at || "")}</span>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       </div>

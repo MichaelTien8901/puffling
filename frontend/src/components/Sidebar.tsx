@@ -8,6 +8,7 @@ const navItems = [
   { href: "/backtest", label: "Backtest" },
   { href: "/strategies", label: "Strategies" },
   { href: "/ai", label: "AI Chat" },
+  { href: "/agent", label: "Agent" },
   { href: "/data", label: "Data" },
   { href: "/trades", label: "Trades" },
   { href: "/settings", label: "Settings" },
