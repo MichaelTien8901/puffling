@@ -1,11 +1,13 @@
 services:
   backend:
     build: .
-    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+    command: >
+      sh -c "uv pip install --system --no-build-isolation /puffin && uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload"
     ports:
       - "8000:8000"
     volumes:
       - .:/app
+      - ~/projects/puffin:/puffin
     working_dir: /app
     environment:
       - PUFFLING_DATABASE_URL=sqlite:///./puffling.db
@@ -25,9 +27,11 @@ services:
 
   test-backend:
     build: .
-    command: pytest tests/ -v
+    command: >
+      sh -c "uv pip install --system --no-build-isolation /puffin && pytest tests/ -v"
     volumes:
       - .:/app
+      - ~/projects/puffin:/puffin
     working_dir: /app
     environment:
       - PUFFLING_DATABASE_URL=sqlite:///./test.db

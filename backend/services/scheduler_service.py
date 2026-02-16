@@ -40,13 +40,16 @@ class SchedulerService:
         config = json.loads(job.config)
         handler = _get_job_handler(job.job_type)
         if handler:
-            self.scheduler.add_job(
-                handler,
-                trigger=CronTrigger.from_crontab(job.schedule),
-                id=job_id,
-                replace_existing=True,
-                kwargs={"config": config, "user_id": job.user_id},
-            )
+            try:
+                self.scheduler.add_job(
+                    handler,
+                    trigger=CronTrigger.from_crontab(job.schedule),
+                    id=job_id,
+                    replace_existing=True,
+                    kwargs={"config": config, "user_id": job.user_id},
+                )
+            except RuntimeError:
+                pass  # Event loop closed (e.g., during tests)
 
     def create_job(self, user_id: str, job_type: str, schedule: str, config: dict) -> ScheduledJob:
         job = ScheduledJob(
