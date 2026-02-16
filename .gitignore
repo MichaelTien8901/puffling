@@ -6,11 +6,16 @@ dist/
 build/
 .venv/
 *.db
+*.db-shm
+*.db-wal
+*.db-journal
 
 # Node
 node_modules/
 frontend/.next/
 frontend/out/
+frontend/test-results/
+frontend/playwright-report/
 
 # Tauri
 desktop/src-tauri/target/
