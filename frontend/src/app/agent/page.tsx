@@ -70,12 +70,12 @@ export default function AgentPage() {
                   <span className="text-sm text-gray-500">{log.run_at}</span>
                 </div>
                 <div className="text-sm mb-2">{String(report.analysis || "No analysis available")}</div>
-                {report.suggestions && (report.suggestions as unknown[]).length > 0 && (
+                {Array.isArray(report.suggestions) && report.suggestions.length > 0 && (
                   <div className="text-sm text-yellow-700 bg-yellow-50 p-2 rounded">
                     Suggestions: {JSON.stringify(report.suggestions)}
                   </div>
                 )}
-                {report.actions_taken && (report.actions_taken as unknown[]).length > 0 && (
+                {Array.isArray(report.actions_taken) && report.actions_taken.length > 0 && (
                   <div className="text-sm text-green-700 bg-green-50 p-2 rounded mt-1">
                     Actions: {JSON.stringify(report.actions_taken)}
                   </div>

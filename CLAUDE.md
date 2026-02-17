@@ -96,7 +96,7 @@ Requires backend + frontend running (via Docker or standalone):
 docker compose up -d backend frontend     # Ensure services are up
 cd frontend
 npx playwright install --with-deps        # First time only
-npx playwright test --reporter=list       # Run all 30 E2E tests
+npx playwright test --reporter=list       # Run all 31 E2E tests
 ```
 
 To run a specific test by name:
@@ -176,7 +176,7 @@ E2E tests cover all 10 pages: Dashboard, Strategies, Backtest, Optimize, Schedul
 | 61 | test_strategy_runner.py | test_activate_deactivate | Strategy activation toggle |
 | 62 | test_strategy_runner.py | test_auto_trade_blocked_by_kill_switch | Kill switch blocks auto-trade |
 
-#### Frontend E2E tests (30) — `cd frontend && npx playwright test --reporter=list`
+#### Frontend E2E tests (31) — `cd frontend && npx playwright test --reporter=list`
 
 Requires: `docker compose up -d backend frontend`
 
@@ -206,12 +206,13 @@ Requires: `docker compose up -d backend frontend`
 | 22 | Optimize | sweep results show comparison table | Strategy comparison with recommendations |
 | 23 | Optimize | optimization history displays with mocked jobs | Job list with status and best Sharpe |
 | 24 | Trades | page loads with trade history section | Trade History heading, table/empty state |
-| 25 | Trades | populated table and P&L with mocked data | Mocked trades in table + P&L Summary |
-| 26 | AI Chat | page loads with input and send button | Input + Send button visible |
-| 27 | AI Chat | typing a message shows user bubble | User message as blue bubble |
-| 28 | Agent | page loads with run button | Run Agent Now button + empty state |
-| 29 | Agent | run button shows running state | Button text → "Running..." |
-| 30 | Agent | logs display with mocked agent data | Mocked log card with analysis text |
+| 25 | Trades | asset type selector shows conditional fields | OPT shows expiry/strike/right, STK hides them |
+| 26 | Trades | populated table and P&L with mocked data | Mocked trades in table + P&L Summary |
+| 27 | AI Chat | page loads with input and send button | Input + Send button visible |
+| 28 | AI Chat | typing a message shows user bubble | User message as blue bubble |
+| 29 | Agent | page loads with run button | Run Agent Now button + empty state |
+| 30 | Agent | run button shows running state | Button text → "Running..." |
+| 31 | Agent | logs display with mocked agent data | Mocked log card with analysis text |
 
 ## GitHub Pages / docs/ Setup
 - Reference: ~/projects/puffin/docs/ for Jekyll tutorial site (separate concern)

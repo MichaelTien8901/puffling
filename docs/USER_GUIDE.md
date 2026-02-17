@@ -148,16 +148,23 @@ View trade history and submit new orders.
 1. Fill in the order form at the top:
    - **Symbol** — Ticker symbol (e.g., SPY, AAPL)
    - **Side** — BUY or SELL
-   - **Quantity** — Number of shares
-   - **Order Type** — market (default) or limit
-2. Click **Submit Order**
-3. The order is sent to your connected broker (Alpaca)
+   - **Quantity** — Number of shares/contracts
+   - **Order Type** — Market, Limit, Stop, or Stop Limit
+   - **Asset Type** — Stock (default), Option, Future, or Forex
+2. When you select a non-stock asset type or non-market order type, additional fields appear:
+   - **Option:** Expiry date, Strike price, Right (Call/Put), Multiplier
+   - **Future:** Expiry date, Multiplier, Exchange
+   - **Forex:** Pair Currency (e.g., CAD)
+   - **All non-stock types:** Exchange (default SMART), Currency (default USD)
+   - **Limit/Stop orders:** Limit Price, Stop Price, Time in Force (DAY/GTC/IOC/FOK)
+3. Click **Submit Order**
+4. The order is sent to your connected broker (Alpaca or IBKR)
 
-**Trade History** shows all executed trades with symbol, side, quantity, price, and timestamp.
+**Trade History** shows all executed trades with symbol, asset type (when not a stock), side, quantity, price, and timestamp.
 
 **P&L Summary** shows aggregate profit/loss and win rate when trades exist.
 
-> **Note:** Orders require a connected Alpaca broker account. Without broker credentials configured, order submission will return an error.
+> **Note:** Orders require a connected broker account. Without broker credentials configured, order submission will return an error. Multi-asset orders (options, futures, forex) require Interactive Brokers.
 
 ### Data Explorer
 

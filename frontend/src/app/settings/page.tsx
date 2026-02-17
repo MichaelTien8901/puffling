@@ -64,7 +64,7 @@ export default function SettingsPage() {
               {safety.kill_switch ? "Resume Trading" : "KILL SWITCH"}
             </button>
           </div>
-          {safety.kill_switch && (
+          {!!safety.kill_switch && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-sm">
               All autonomous trading is currently halted.
             </div>
