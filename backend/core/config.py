@@ -6,6 +6,8 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./puffling.db"
     default_user_id: str = "default"
     paper_trading: bool = True
+    alpaca_api_key: str = ""
+    alpaca_secret_key: str = ""
 
     model_config = {"env_prefix": "PUFFLING_"}
 

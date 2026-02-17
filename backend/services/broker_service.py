@@ -16,7 +16,11 @@ class BrokerService:
 
     def _get_broker(self):
         from puffin.broker import AlpacaBroker
-        return AlpacaBroker(paper=settings.paper_trading)
+        return AlpacaBroker(
+            api_key=settings.alpaca_api_key,
+            secret_key=settings.alpaca_secret_key,
+            paper=settings.paper_trading,
+        )
 
     def get_account(self) -> dict:
         broker = self._get_broker()

@@ -11,6 +11,8 @@ services:
     working_dir: /app
     environment:
       - PUFFLING_DATABASE_URL=sqlite:///./puffling.db
+      - PUFFLING_ALPACA_API_KEY=${ALPACA_API_KEY:-}
+      - PUFFLING_ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY:-}
 
   frontend:
     build: ./frontend
