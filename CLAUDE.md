@@ -74,7 +74,7 @@ npm run build                             # Production build
 ### Backend unit tests (Docker — recommended)
 Uses the `test-backend` service which auto-installs Puffin and runs pytest:
 ```bash
-docker compose run --rm test-backend      # Runs all 30 backend tests
+docker compose run --rm test-backend      # Runs all 62 backend tests
 ```
 
 To run a specific test file:
@@ -87,7 +87,7 @@ docker compose run --rm test-backend sh -c \
 Requires Puffin installed locally (`pip install -e ~/projects/puffin`):
 ```bash
 pip install -e ".[dev]"                   # Install puffling + dev deps (pytest, httpx, ruff)
-pytest tests/ -v                          # Run all 30 backend tests
+pytest tests/ -v                          # Run all 38 backend tests
 ```
 
 ### Frontend E2E tests (Playwright)
@@ -96,7 +96,7 @@ Requires backend + frontend running (via Docker or standalone):
 docker compose up -d backend frontend     # Ensure services are up
 cd frontend
 npx playwright install --with-deps        # First time only
-npx playwright test --reporter=list       # Run all 28 E2E tests
+npx playwright test --reporter=list       # Run all 30 E2E tests
 ```
 
 To run a specific test by name:
@@ -109,7 +109,7 @@ E2E tests cover all 10 pages: Dashboard, Strategies, Backtest, Optimize, Schedul
 
 ### Test inventory
 
-#### Backend tests (30) — `docker compose run --rm test-backend`
+#### Backend tests (62) — `docker compose run --rm test-backend`
 
 | # | File | Test | Description |
 |---|------|------|-------------|
@@ -123,28 +123,60 @@ E2E tests cover all 10 pages: Dashboard, Strategies, Backtest, Optimize, Schedul
 | 8 | test_autonomous.py | test_alerts_crud | Alert config create/delete |
 | 9 | test_autonomous.py | test_safety_controls | Kill switch and safety settings |
 | 10 | test_autonomous.py | test_safety_service_can_trade | Safety service trade gating |
-| 11 | test_e2e.py | test_app_starts_and_health | App startup and health check |
-| 12 | test_e2e.py | test_full_strategy_flow | Strategy create → backtest flow |
-| 13 | test_e2e.py | test_settings_roundtrip | Settings set → get → delete |
-| 14 | test_e2e.py | test_model_types_available | ML model types available |
-| 15 | test_e2e.py | test_factor_library_available | Factor library accessible |
-| 16 | test_optimizer.py | test_default_grids_exist | Default param grids for all 4 strategies |
-| 17 | test_optimizer.py | test_grid_size_validation | Rejects grids > 500 combinations |
-| 18 | test_optimizer.py | test_data_length_validation | Rejects insufficient data length |
-| 19 | test_optimizer.py | test_expand_grid | Grid expansion to parameter combos |
-| 20 | test_optimizer.py | test_default_grid_sizes_within_limit | All default grids under limit |
-| 21 | test_optimizer.py | test_list_jobs_empty | Empty job list returns [] |
-| 22 | test_optimizer.py | test_get_job_not_found | 404 for missing job |
-| 23 | test_optimizer.py | test_submit_strategy_optimization | Submit optimization returns job_id |
-| 24 | test_optimizer.py | test_submit_with_oversized_grid | 400 for oversized grid |
-| 25 | test_optimizer.py | test_cancel_nonexistent_job | 404 for cancelling missing job |
-| 26 | test_optimizer.py | test_list_jobs_after_submit | Job appears in list after submit |
-| 27 | test_services.py | test_settings_service | SettingsService CRUD operations |
-| 28 | test_services.py | test_model_service_list_types | ModelService type listing |
-| 29 | test_strategy_runner.py | test_activate_deactivate | Strategy activation toggle |
-| 30 | test_strategy_runner.py | test_auto_trade_blocked_by_kill_switch | Kill switch blocks auto-trade |
+| 11 | test_broker_multi_asset.py | test_submit_options_order | Options order with expiry, strike, right |
+| 12 | test_broker_multi_asset.py | test_submit_futures_order | Futures order with expiry, multiplier |
+| 13 | test_broker_multi_asset.py | test_submit_forex_order | Forex order with pair_currency |
+| 14 | test_broker_multi_asset.py | test_submit_non_us_stock_order | Non-US stock with exchange, currency |
+| 15 | test_broker_multi_asset.py | test_simple_stock_order_unchanged | Plain stock order backward compat |
+| 16 | test_broker_multi_asset.py | test_confirm_options_order_uses_contract_spec | Confirm routes to submit_order_with_spec |
+| 17 | test_broker_multi_asset.py | test_confirm_stock_order_uses_submit_order | Confirm routes to submit_order for stocks |
+| 18 | test_broker_multi_asset.py | test_needs_contract_spec_logic | _needs_contract_spec detection logic |
+| 19 | test_e2e.py | test_app_starts_and_health | App startup and health check |
+| 20 | test_e2e.py | test_full_strategy_flow | Strategy create → backtest flow |
+| 21 | test_e2e.py | test_settings_roundtrip | Settings set → get → delete |
+| 22 | test_e2e.py | test_model_types_available | ML model types available |
+| 23 | test_e2e.py | test_factor_library_available | Factor library accessible |
+| 24 | test_live_adaptation.py | test_volatility_ratio_normal | Normal volatility ratio calculation |
+| 25 | test_live_adaptation.py | test_volatility_ratio_insufficient_data | Volatility with insufficient data |
+| 26 | test_live_adaptation.py | test_trend_strength | Uptrend strength detection |
+| 27 | test_live_adaptation.py | test_trend_strength_downtrend | Downtrend strength detection |
+| 28 | test_live_adaptation.py | test_detect_regime_high_volatility | High volatility regime detection |
+| 29 | test_live_adaptation.py | test_detect_regime_no_change | No regime change detection |
+| 30 | test_live_adaptation.py | test_cap_params_within_limits | Params within safety limits |
+| 31 | test_live_adaptation.py | test_cap_params_exceeds_limits | Params exceeding safety limits |
+| 32 | test_live_adaptation.py | test_cap_params_non_numeric | Non-numeric param capping |
+| 33 | test_live_adaptation.py | test_cooldown_check_no_events | Cooldown with no prior events |
+| 34 | test_live_adaptation.py | test_cooldown_check_active | Active cooldown period |
+| 35 | test_live_adaptation.py | test_cooldown_check_expired | Expired cooldown period |
+| 36 | test_live_adaptation.py | test_create_adaptation | Create adaptation config |
+| 37 | test_live_adaptation.py | test_list_adaptations | List adaptation configs |
+| 38 | test_live_adaptation.py | test_stop_adaptation | Stop running adaptation |
+| 39 | test_live_adaptation.py | test_stop_nonexistent_adaptation | Stop nonexistent adaptation |
+| 40 | test_live_adaptation.py | test_adaptation_history_empty | Empty adaptation history |
+| 41 | test_live_adaptation.py | test_adaptation_history_not_found | Adaptation history not found |
+| 42 | test_optimizer.py | test_default_grids_exist | Default param grids for all 4 strategies |
+| 43 | test_optimizer.py | test_grid_size_validation | Rejects grids > 500 combinations |
+| 44 | test_optimizer.py | test_data_length_validation | Rejects insufficient data length |
+| 45 | test_optimizer.py | test_expand_grid | Grid expansion to parameter combos |
+| 46 | test_optimizer.py | test_default_grid_sizes_within_limit | All default grids under limit |
+| 47 | test_optimizer.py | test_list_jobs_empty | Empty job list returns [] |
+| 48 | test_optimizer.py | test_get_job_not_found | 404 for missing job |
+| 49 | test_optimizer.py | test_submit_strategy_optimization | Submit optimization returns job_id |
+| 50 | test_optimizer.py | test_submit_with_oversized_grid | 400 for oversized grid |
+| 51 | test_optimizer.py | test_cancel_nonexistent_job | 404 for cancelling missing job |
+| 52 | test_optimizer.py | test_list_jobs_after_submit | Job appears in list after submit |
+| 53 | test_optimizer.py | test_build_recommendation | Build strategy recommendation |
+| 54 | test_optimizer.py | test_build_recommendation_low_confidence | Low confidence recommendation |
+| 55 | test_optimizer.py | test_build_recommendation_negative_sharpe | Negative Sharpe recommendation |
+| 56 | test_optimizer.py | test_build_recommendation_empty | Empty results recommendation |
+| 57 | test_optimizer.py | test_submit_sweep | Submit strategy sweep |
+| 58 | test_optimizer.py | test_sweep_job_in_list | Sweep job appears in list |
+| 59 | test_services.py | test_settings_service | SettingsService CRUD operations |
+| 60 | test_services.py | test_model_service_list_types | ModelService type listing |
+| 61 | test_strategy_runner.py | test_activate_deactivate | Strategy activation toggle |
+| 62 | test_strategy_runner.py | test_auto_trade_blocked_by_kill_switch | Kill switch blocks auto-trade |
 
-#### Frontend E2E tests (28) — `cd frontend && npx playwright test --reporter=list`
+#### Frontend E2E tests (30) — `cd frontend && npx playwright test --reporter=list`
 
 Requires: `docker compose up -d backend frontend`
 
@@ -170,14 +202,16 @@ Requires: `docker compose up -d backend frontend`
 | 18 | Optimize | strategy type selector changes param grid | Grid params update per strategy type |
 | 19 | Optimize | advanced settings toggle | Show/hide walk-forward splits and train ratio |
 | 20 | Optimize | results table displays with mocked optimization data | Ranked results with Sharpe, action buttons |
-| 21 | Optimize | optimization history displays with mocked jobs | Job list with status and best Sharpe |
-| 22 | Trades | page loads with trade history section | Trade History heading, table/empty state |
-| 23 | Trades | populated table and P&L with mocked data | Mocked trades in table + P&L Summary |
-| 24 | AI Chat | page loads with input and send button | Input + Send button visible |
-| 25 | AI Chat | typing a message shows user bubble | User message as blue bubble |
-| 26 | Agent | page loads with run button | Run Agent Now button + empty state |
-| 27 | Agent | run button shows running state | Button text → "Running..." |
-| 28 | Agent | logs display with mocked agent data | Mocked log card with analysis text |
+| 21 | Optimize | auto mode hides param grid and shows note | Auto mode UI behavior |
+| 22 | Optimize | sweep results show comparison table | Strategy comparison with recommendations |
+| 23 | Optimize | optimization history displays with mocked jobs | Job list with status and best Sharpe |
+| 24 | Trades | page loads with trade history section | Trade History heading, table/empty state |
+| 25 | Trades | populated table and P&L with mocked data | Mocked trades in table + P&L Summary |
+| 26 | AI Chat | page loads with input and send button | Input + Send button visible |
+| 27 | AI Chat | typing a message shows user bubble | User message as blue bubble |
+| 28 | Agent | page loads with run button | Run Agent Now button + empty state |
+| 29 | Agent | run button shows running state | Button text → "Running..." |
+| 30 | Agent | logs display with mocked agent data | Mocked log card with analysis text |
 
 ## GitHub Pages / docs/ Setup
 - Reference: ~/projects/puffin/docs/ for Jekyll tutorial site (separate concern)
