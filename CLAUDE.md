@@ -96,7 +96,7 @@ Requires backend + frontend running (via Docker or standalone):
 docker compose up -d backend frontend     # Ensure services are up
 cd frontend
 npx playwright install --with-deps        # First time only
-npx playwright test --reporter=list       # Run all 32 E2E tests
+npx playwright test --reporter=list       # Run all 45 E2E tests
 ```
 
 To run a specific test by name:
@@ -105,7 +105,7 @@ cd frontend
 npx playwright test --reporter=list -g "chart renders"
 ```
 
-E2E tests cover all 10 pages: Dashboard, Strategies, Backtest, Optimize, Scheduler, Settings, Data Explorer, Trades, AI Chat, Agent. Tests use `page.route()` mocks for trade data, P&L, OHLCV charts, backtest results, and agent logs.
+E2E tests cover all 12 pages: Dashboard, Strategies, Backtest, Optimize, Scheduler, Settings, Data Explorer, Trades, Portfolio, Risk, AI Chat, Agent. Tests use `page.route()` mocks for trade data, P&L, OHLCV charts, backtest results, agent logs, position sizing, portfolio optimization, and tearsheets.
 
 ### Test inventory
 
@@ -176,15 +176,15 @@ E2E tests cover all 10 pages: Dashboard, Strategies, Backtest, Optimize, Schedul
 | 61 | test_strategy_runner.py | test_activate_deactivate | Strategy activation toggle |
 | 62 | test_strategy_runner.py | test_auto_trade_blocked_by_kill_switch | Kill switch blocks auto-trade |
 
-#### Frontend E2E tests (33) — `cd frontend && npx playwright test --reporter=list`
+#### Frontend E2E tests (45) — `cd frontend && npx playwright test --reporter=list`
 
 Requires: `docker compose up -d backend frontend`
 
 | # | Suite | Test | Description |
 |---|-------|------|-------------|
-| 1 | Dashboard | loads and shows panels | Page heading + 4 panel headings |
+| 1 | Dashboard | loads and shows panels | Page heading + panel headings |
 | 2 | Live Prices | live prices panel shows on dashboard | Live Prices heading visible |
-| 3 | Navigation | sidebar links navigate to correct pages | All 10 sidebar links |
+| 3 | Navigation | sidebar links navigate to correct pages | All 12 sidebar links |
 | 4 | Strategy CRUD | create and delete a strategy | Create → verify → delete → verify gone |
 | 5 | Backtest | form renders with fields and run button | Form fields visible |
 | 6 | Backtest | clicking run triggers backtest submission | Page stays functional after click |
@@ -215,6 +215,18 @@ Requires: `docker compose up -d backend frontend`
 | 31 | Agent | page loads with run button | Run Agent Now button + empty state |
 | 32 | Agent | run button shows running state | Button text → "Running..." |
 | 33 | Agent | logs display with mocked agent data | Mocked log card with analysis text |
+| 34 | Risk | page loads with position sizing form | Position Sizing + Portfolio Risk headings |
+| 35 | Risk | method dropdown changes param fields | percent_risk → kelly field switch |
+| 36 | Risk | mocked position size result displays | Position size result from mocked API |
+| 37 | Risk | mocked portfolio risk result displays | VaR, Sharpe from mocked API |
+| 38 | Portfolio | page loads with optimization form | Portfolio Optimization heading + form |
+| 39 | Portfolio | mocked optimization weights display | Weight table from mocked API |
+| 40 | Portfolio | mocked tearsheet displays metrics | Tearsheet metrics from mocked API |
+| 41 | Portfolio | mocked factor results display | Factor values from mocked API |
+| 42 | Dashboard Account | account panel shows broker data | Cash, portfolio value from mocked API |
+| 43 | Dashboard Account | account panel handles broker error | "Broker not connected" on API error |
+| 44 | Optimize Live Adaptation | live adaptation section renders | Adaptation table from mocked API |
+| 45 | Backtest Progress | progress indicator shows during backtest | Progress bar after mocked submit |
 
 ## GitHub Pages / docs/ Setup
 - Reference: ~/projects/puffin/docs/ for Jekyll tutorial site (separate concern)

@@ -76,7 +76,7 @@ docker compose run --rm test-backend sh -c \
 pytest tests/ -v
 ```
 
-### Frontend E2E tests (30 tests)
+### Frontend E2E tests (45 tests)
 
 Requires backend + frontend running:
 ```bash
@@ -163,39 +163,54 @@ npx playwright test --reporter=list -g "kill switch"
 | 61 | test_strategy_runner.py | test_activate_deactivate | Strategy activation toggle |
 | 62 | test_strategy_runner.py | test_auto_trade_blocked_by_kill_switch | Kill switch blocks auto-trade |
 
-#### Frontend E2E tests (30) — `cd frontend && npx playwright test --reporter=list`
+#### Frontend E2E tests (45) — `cd frontend && npx playwright test --reporter=list`
 
 Requires: `docker compose up -d backend frontend`
 
 | # | Suite | Test | Description |
 |---|-------|------|-------------|
-| 1 | Dashboard | loads and shows panels | Page heading + 4 panel headings |
-| 2 | Navigation | sidebar links navigate to correct pages | All 10 sidebar links |
-| 3 | Strategy CRUD | create and delete a strategy | Create → verify → delete → verify gone |
-| 4 | Backtest | form renders with fields and run button | Form fields visible |
-| 5 | Backtest | clicking run triggers backtest submission | Page stays functional after click |
-| 6 | Backtest | results display after mocked backtest run | Mocked results in `<pre>` block |
-| 7 | Scheduler | create and delete a job | Job CRUD in table |
-| 8 | Scheduler | toggle job enabled/disabled | Enabled ↔ Disabled toggle |
-| 9 | Settings & Safety | page loads with safety controls | Safety controls heading visible |
-| 10 | Settings & Safety | kill switch button is visible | Kill switch button present |
-| 11 | Settings & Safety | kill switch toggles between kill and resume | KILL SWITCH → Resume → KILL SWITCH |
-| 12 | Settings & Safety | add and delete a setting | Setting CRUD in table |
-| 13 | Settings & Safety | safety number inputs are visible | Number inputs present |
-| 14 | Data Explorer | page loads with form elements | Symbol input, date, Load button |
-| 15 | Data Explorer | load button triggers data fetch | Page stable after Load click |
-| 16 | Data Explorer | chart renders with mocked OHLCV data | Canvas element from mocked data |
-| 17 | Optimize | page loads with form elements | Strategy selector, Run button, param grid |
-| 18 | Optimize | strategy type selector changes param grid | Grid params update per strategy type |
-| 19 | Optimize | advanced settings toggle | Show/hide walk-forward splits and train ratio |
-| 20 | Optimize | results table displays with mocked optimization data | Ranked results with Sharpe, action buttons |
-| 21 | Optimize | auto mode hides param grid and shows note | Auto mode UI behavior |
-| 22 | Optimize | sweep results show comparison table | Strategy comparison with recommendations |
-| 23 | Optimize | optimization history displays with mocked jobs | Job list with status and best Sharpe |
-| 24 | Trades | page loads with trade history section | Trade History heading, table/empty state |
-| 25 | Trades | populated table and P&L with mocked data | Mocked trades in table + P&L Summary |
-| 26 | AI Chat | page loads with input and send button | Input + Send button visible |
-| 27 | AI Chat | typing a message shows user bubble | User message as blue bubble |
-| 28 | Agent | page loads with run button | Run Agent Now button + empty state |
-| 29 | Agent | run button shows running state | Button text → "Running..." |
-| 30 | Agent | logs display with mocked agent data | Mocked log card with analysis text |
+| 1 | Dashboard | loads and shows panels | Page heading + panel headings |
+| 2 | Live Prices | live prices panel shows on dashboard | Live Prices heading visible |
+| 3 | Navigation | sidebar links navigate to correct pages | All 12 sidebar links |
+| 4 | Strategy CRUD | create and delete a strategy | Create → verify → delete → verify gone |
+| 5 | Backtest | form renders with fields and run button | Form fields visible |
+| 6 | Backtest | clicking run triggers backtest submission | Page stays functional after click |
+| 7 | Backtest | results display after mocked backtest run | Mocked results in `<pre>` block |
+| 8 | Scheduler | create and delete a job | Job CRUD in table |
+| 9 | Scheduler | toggle job enabled/disabled | Enabled ↔ Disabled toggle |
+| 10 | Settings & Safety | page loads with safety controls | Safety controls heading visible |
+| 11 | Settings & Safety | kill switch button is visible | Kill switch button present |
+| 12 | Settings & Safety | kill switch toggles between kill and resume | KILL SWITCH → Resume → KILL SWITCH |
+| 13 | Settings & Safety | add and delete a setting | Setting CRUD in table |
+| 14 | Settings & Safety | safety number inputs are visible | Number inputs present |
+| 15 | Data Explorer | page loads with form elements | Symbol input, date, Load button |
+| 16 | Data Explorer | load button triggers data fetch | Page stable after Load click |
+| 17 | Data Explorer | chart renders with mocked OHLCV data | Canvas element from mocked data |
+| 18 | Optimize | page loads with form elements | Strategy selector, Run button, param grid |
+| 19 | Optimize | strategy type selector changes param grid | Grid params update per strategy type |
+| 20 | Optimize | advanced settings toggle | Show/hide walk-forward splits and train ratio |
+| 21 | Optimize | results table displays with mocked optimization data | Ranked results with Sharpe, action buttons |
+| 22 | Optimize | auto mode hides param grid and shows note | Auto mode UI behavior |
+| 23 | Optimize | sweep results show comparison table | Strategy comparison with recommendations |
+| 24 | Optimize | optimization history displays with mocked jobs | Job list with status and best Sharpe |
+| 25 | Trades | page loads with trade history section | Trade History heading, table/empty state |
+| 26 | Trades | asset type selector shows conditional fields | OPT shows expiry/strike/right, STK hides them |
+| 27 | Trades | order confirmation modal shows and cancels | Review Order opens modal, Cancel closes it |
+| 28 | Trades | populated table and P&L with mocked data | Mocked trades in table + P&L Summary |
+| 29 | AI Chat | page loads with input and send button | Input + Send button visible |
+| 30 | AI Chat | typing a message shows user bubble | User message as blue bubble |
+| 31 | Agent | page loads with run button | Run Agent Now button + empty state |
+| 32 | Agent | run button shows running state | Button text → "Running..." |
+| 33 | Agent | logs display with mocked agent data | Mocked log card with analysis text |
+| 34 | Risk | page loads with position sizing form | Position Sizing + Portfolio Risk headings |
+| 35 | Risk | method dropdown changes param fields | percent_risk → kelly field switch |
+| 36 | Risk | mocked position size result displays | Position size result from mocked API |
+| 37 | Risk | mocked portfolio risk result displays | VaR, Sharpe from mocked API |
+| 38 | Portfolio | page loads with optimization form | Portfolio Optimization heading + form |
+| 39 | Portfolio | mocked optimization weights display | Weight table from mocked API |
+| 40 | Portfolio | mocked tearsheet displays metrics | Tearsheet metrics from mocked API |
+| 41 | Portfolio | mocked factor results display | Factor values from mocked API |
+| 42 | Dashboard Account | account panel shows broker data | Cash, portfolio value from mocked API |
+| 43 | Dashboard Account | account panel handles broker error | "Broker not connected" on API error |
+| 44 | Optimize Live Adaptation | live adaptation section renders | Adaptation table from mocked API |
+| 45 | Backtest Progress | progress indicator shows during backtest | Progress bar after mocked submit |
