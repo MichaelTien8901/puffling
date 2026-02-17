@@ -13,6 +13,10 @@ services:
       - PUFFLING_DATABASE_URL=sqlite:///./puffling.db
       - PUFFLING_ALPACA_API_KEY=${ALPACA_API_KEY:-}
       - PUFFLING_ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY:-}
+      - PUFFLING_BROKER=${BROKER:-alpaca}
+      - PUFFLING_IBKR_HOST=${IBKR_HOST:-127.0.0.1}
+      - PUFFLING_IBKR_PORT=${IBKR_PORT:-4002}
+      - PUFFLING_IBKR_CLIENT_ID=${IBKR_CLIENT_ID:-1}
 
   frontend:
     build: ./frontend

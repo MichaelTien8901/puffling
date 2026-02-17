@@ -15,12 +15,21 @@ class BrokerService:
         self.db = db
 
     def _get_broker(self):
-        from puffin.broker import AlpacaBroker
-        return AlpacaBroker(
-            api_key=settings.alpaca_api_key,
-            secret_key=settings.alpaca_secret_key,
-            paper=settings.paper_trading,
-        )
+        if settings.broker == "ibkr":
+            from puffin.broker import IBKRBroker
+            return IBKRBroker(
+                host=settings.ibkr_host,
+                port=settings.ibkr_port,
+                client_id=settings.ibkr_client_id,
+                paper=settings.paper_trading,
+            )
+        else:
+            from puffin.broker import AlpacaBroker
+            return AlpacaBroker(
+                api_key=settings.alpaca_api_key,
+                secret_key=settings.alpaca_secret_key,
+                paper=settings.paper_trading,
+            )
 
     def get_account(self) -> dict:
         broker = self._get_broker()

@@ -32,12 +32,47 @@ ALPACA_SECRET_KEY=your_secret_key_here
 
 Alpaca's **live trading** (real money) requires US residency, but **paper trading works for everyone worldwide** — no identity verification or US address needed. You get paper trading API keys immediately after signing up.
 
-This means Canadian users can:
-- Submit simulated orders and track positions with $100k virtual cash
-- Use all of Puffling's features (strategies, backtesting, optimization, order entry)
-- Develop and test trading strategies risk-free
+For **live trading from Canada**, use Interactive Brokers (see below).
 
-For live trading from Canada, consider [Interactive Brokers Canada](https://www.interactivebrokers.ca) which offers full API access for US-listed stocks. Puffling currently supports Alpaca only; IBKR support may be added in the future.
+### 1b. Configure Interactive Brokers (IBKR)
+
+Puffling supports [Interactive Brokers](https://www.interactivebrokers.ca) as an alternative broker. IBKR accepts Canadian residents and provides full API access for US-listed stocks.
+
+**Setup:**
+
+1. Sign up at https://www.interactivebrokers.ca (or .com for US)
+2. Enable a **paper trading account** (free) from Account Management
+3. Download and install **IB Gateway** (recommended) or **TWS**:
+   - IB Gateway: https://www.interactivebrokers.com/en/trading/ibgateway-stable.php
+   - Lighter weight, headless — preferred for algo trading
+4. Launch IB Gateway, log in with your paper trading credentials
+5. In your `.env` file, set:
+
+```
+BROKER=ibkr
+IBKR_HOST=127.0.0.1
+IBKR_PORT=4002
+IBKR_CLIENT_ID=1
+```
+
+**Port reference:**
+| Application | Paper | Live |
+|-------------|-------|------|
+| IB Gateway  | 4002  | 4001 |
+| TWS         | 7497  | 7496 |
+
+**IB Gateway configuration:**
+- In IB Gateway settings, go to **API > Settings**
+- Check "Enable ActiveX and Socket Clients"
+- Uncheck "Read-Only API" (required for order submission)
+- Add `127.0.0.1` to trusted IPs
+
+**Install the IBKR dependency** in Puffin:
+```bash
+pip install -e ~/projects/puffin[ibkr]
+```
+
+> **Note:** IB Gateway/TWS must be running whenever Puffling needs broker access. If the connection drops, Puffling will attempt to reconnect on the next request.
 
 ### 2. Start the App
 
