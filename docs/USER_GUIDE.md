@@ -8,7 +8,7 @@ Puffling is a personal AI-powered algorithmic trading application. This guide wa
 
 Puffling connects to [Alpaca](https://alpaca.markets) for trading. You need a free Alpaca account to submit orders and view positions.
 
-1. Sign up at https://alpaca.markets (free)
+1. Sign up at https://app.alpaca.markets/signup (free — just email and password)
 2. Go to **Dashboard > API Keys** and generate a new key pair
 3. Copy your API Key and Secret Key
 4. Create a `.env` file in the project root (copy from the template):
@@ -27,6 +27,17 @@ ALPACA_SECRET_KEY=your_secret_key_here
 **Paper trading** is enabled by default — you trade with virtual money (~$100k) so there's no financial risk. The same Alpaca credentials work for both paper and live trading; Puffling controls which mode via the Settings page.
 
 > **Without Alpaca credentials:** The app still works for backtesting, optimization, data exploration, and strategy management. Only order submission and portfolio/position viewing require Alpaca.
+
+#### Canadian Users & Non-US Residents
+
+Alpaca's **live trading** (real money) requires US residency, but **paper trading works for everyone worldwide** — no identity verification or US address needed. You get paper trading API keys immediately after signing up.
+
+This means Canadian users can:
+- Submit simulated orders and track positions with $100k virtual cash
+- Use all of Puffling's features (strategies, backtesting, optimization, order entry)
+- Develop and test trading strategies risk-free
+
+For live trading from Canada, consider [Interactive Brokers Canada](https://www.interactivebrokers.ca) which offers full API access for US-listed stocks. Puffling currently supports Alpaca only; IBKR support may be added in the future.
 
 ### 2. Start the App
 
