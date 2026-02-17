@@ -19,8 +19,12 @@ export default function Dashboard() {
   const [goals, setGoals] = useState<Record<string, unknown>[]>([]);
   const [alerts, setAlerts] = useState<Record<string, unknown>[]>([]);
   const [prices, setPrices] = useState<Map<string, PriceEntry>>(new Map());
+  const [account, setAccount] = useState<Record<string, unknown> | null>(null);
+  const [accountError, setAccountError] = useState(false);
+  const [liveTrades, setLiveTrades] = useState<Record<string, unknown>[]>([]);
   const { lastMessage: alertMsg } = useWebSocket("/ws/alerts");
   const { lastMessage: priceMsg, send: priceSend } = useWebSocket("/ws/prices");
+  const { lastMessage: tradeMsg, isConnected: tradeWsConnected } = useWebSocket("/ws/trades");
   const subscribedRef = useRef(false);
 
   const subscribeToPrices = useCallback(() => {
@@ -59,7 +63,19 @@ export default function Dashboard() {
     api.get<Record<string, unknown>[]>("/api/strategies/live/active").then(setActiveStrategies).catch(() => {});
     api.get<Record<string, unknown>[]>("/api/portfolio/goals/").then(setGoals).catch(() => {});
     api.get<Record<string, unknown>[]>("/api/alerts/history").then(setAlerts).catch(() => {});
+    api.get<Record<string, unknown>>("/api/broker/account").then(setAccount).catch(() => setAccountError(true));
   }, []);
+
+  useEffect(() => {
+    if (tradeMsg) {
+      try {
+        const data = JSON.parse(tradeMsg);
+        if (data.symbol) {
+          setLiveTrades((prev) => [data, ...prev].slice(0, 10));
+        }
+      } catch {}
+    }
+  }, [tradeMsg]);
 
   useEffect(() => {
     if (alertMsg) {
@@ -72,6 +88,48 @@ export default function Dashboard() {
     <div>
       <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Account */}
+        <div className="bg-white rounded-lg shadow p-4">
+          <h2 className="text-lg font-semibold mb-3">Account</h2>
+          {accountError ? (
+            <p className="text-gray-500">Broker not connected</p>
+          ) : account ? (
+            <div className="grid grid-cols-3 gap-2">
+              {[["Cash", account.cash], ["Portfolio Value", account.portfolio_value], ["Buying Power", account.buying_power]].map(([label, val]) => (
+                <div key={String(label)} className="text-center">
+                  <div className="text-xs text-gray-500">{String(label)}</div>
+                  <div className="text-lg font-semibold">${Number(val).toLocaleString()}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500">Loading...</p>
+          )}
+        </div>
+
+        {/* Live Trade Feed */}
+        <div className="bg-white rounded-lg shadow p-4">
+          <h2 className="text-lg font-semibold mb-3">
+            Live Trade Feed
+            {!tradeWsConnected && <span className="ml-2 text-xs text-red-500">Disconnected</span>}
+          </h2>
+          {liveTrades.length === 0 ? (
+            <p className="text-gray-500">No live trades</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead><tr className="text-left text-gray-500"><th>Symbol</th><th>Side</th><th>Qty</th><th>Price</th></tr></thead>
+              <tbody>
+                {liveTrades.map((t, i) => (
+                  <tr key={i} className="border-t">
+                    <td>{String(t.symbol)}</td><td>{String(t.side)}</td>
+                    <td>{String(t.qty)}</td><td>{String(t.price)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
         {/* Portfolio */}
         <div className="bg-white rounded-lg shadow p-4">
           <h2 className="text-lg font-semibold mb-3">Portfolio</h2>

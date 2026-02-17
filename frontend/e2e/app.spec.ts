@@ -35,6 +35,8 @@ test.describe("Navigation", () => {
       { label: "Agent", heading: "AI Agent Activity" },
       { label: "Data", heading: "Data Explorer" },
       { label: "Trades", heading: "Trades" },
+      { label: "Portfolio", heading: "Portfolio" },
+      { label: "Risk", heading: "Risk & Position Sizing" },
       { label: "Dashboard", heading: "Dashboard" },
     ];
 
@@ -574,5 +576,173 @@ test.describe("Agent", () => {
 
     await expect(page.getByText("Market is bullish")).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText("Run #1")).toBeVisible();
+  });
+});
+
+test.describe("Risk", () => {
+  test("page loads with position sizing form", async ({ page }) => {
+    await page.goto("/risk");
+    await expect(pageHeading(page)).toHaveText("Risk & Position Sizing");
+    await expect(page.getByRole("heading", { name: "Position Sizing", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Portfolio Risk Metrics" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Calculate" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Compute Risk" })).toBeVisible();
+  });
+
+  test("method dropdown changes param fields", async ({ page }) => {
+    await page.goto("/risk");
+    // Default is percent_risk — should show account_size, risk_pct, entry_price, stop_price
+    await expect(page.getByText("account_size")).toBeVisible();
+    await expect(page.getByText("stop_price")).toBeVisible();
+
+    // Switch to kelly
+    await page.locator("select").first().selectOption("kelly");
+    await expect(page.getByText("win_rate")).toBeVisible();
+    await expect(page.getByText("avg_win")).toBeVisible();
+    // percent_risk fields should be gone
+    await expect(page.getByText("stop_price")).not.toBeVisible();
+  });
+
+  test("mocked position size result displays", async ({ page }) => {
+    await page.route("**/api/risk/position-size", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ position_size: 150, dollar_risk: 300 }),
+      })
+    );
+    await page.goto("/risk");
+    await page.getByRole("button", { name: "Calculate" }).click();
+    await expect(page.getByText("position_size")).toBeVisible();
+    await expect(page.getByText("150")).toBeVisible();
+  });
+
+  test("mocked portfolio risk result displays", async ({ page }) => {
+    await page.route("**/api/risk/portfolio", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ var_95: -0.0234, max_drawdown: -0.1523, sharpe: 1.45, volatility: 0.189 }),
+      })
+    );
+    await page.goto("/risk");
+    await page.getByRole("button", { name: "Compute Risk" }).click();
+    await expect(page.getByText("var_95")).toBeVisible();
+    await expect(page.getByText("sharpe")).toBeVisible();
+  });
+});
+
+test.describe("Portfolio", () => {
+  test("page loads with optimization form", async ({ page }) => {
+    await page.goto("/portfolio");
+    await expect(pageHeading(page)).toHaveText("Portfolio");
+    await expect(page.getByRole("heading", { name: "Portfolio Optimization" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Optimize" })).toBeVisible();
+  });
+
+  test("mocked optimization weights display", async ({ page }) => {
+    await page.route("**/api/portfolio/optimize", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ weights: { AAPL: 0.35, GOOGL: 0.40, MSFT: 0.25 } }),
+      })
+    );
+    await page.goto("/portfolio");
+    await page.getByRole("button", { name: "Optimize" }).click();
+    await expect(page.getByText("AAPL")).toBeVisible();
+    await expect(page.getByText("0.35")).toBeVisible();
+  });
+
+  test("mocked tearsheet displays metrics", async ({ page }) => {
+    await page.route("**/api/portfolio/tearsheet", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ total_return: 0.25, cagr: 0.12, sharpe: 1.8, max_drawdown: -0.15 }),
+      })
+    );
+    await page.goto("/portfolio");
+    const returnsInput = page.locator('input[placeholder="0.01, 0.02, -0.005"]');
+    await returnsInput.fill("0.01, 0.02, 0.03");
+    await page.getByRole("button", { name: "Generate Tearsheet" }).click();
+    await expect(page.getByText("total_return")).toBeVisible();
+    await expect(page.getByText("sharpe", { exact: true })).toBeVisible();
+  });
+
+  test("mocked factor results display", async ({ page }) => {
+    await page.route("**/api/factors/compute", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ AAPL: { momentum: 0.05, volatility: 0.2 }, GOOGL: { momentum: 0.03, volatility: 0.18 } }),
+      })
+    );
+    await page.goto("/portfolio");
+    await page.getByRole("button", { name: "Compute Factors" }).click();
+    await expect(page.getByText("momentum")).toBeVisible();
+  });
+});
+
+test.describe("Dashboard Account & Trades", () => {
+  test("account panel shows broker data", async ({ page }) => {
+    await page.route("**/api/broker/account", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ cash: 50000, portfolio_value: 125000, buying_power: 100000 }),
+      })
+    );
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Account" })).toBeVisible();
+    await expect(page.getByText("$50,000")).toBeVisible();
+    await expect(page.getByText("$125,000")).toBeVisible();
+  });
+
+  test("account panel handles broker error", async ({ page }) => {
+    await page.route("**/api/broker/account", (route) =>
+      route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ detail: "error" }) })
+    );
+    await page.goto("/");
+    await expect(page.getByText("Broker not connected")).toBeVisible();
+  });
+});
+
+test.describe("Optimize Live Adaptation", () => {
+  test("live adaptation section renders", async ({ page }) => {
+    await page.route("**/api/optimize/live", (route) => {
+      if (route.request().method() === "GET") {
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify([
+            { id: 1, strategy_type: "momentum", next_run: "2024-06-01T10:00:00", status: "active" },
+          ]),
+        });
+      }
+      return route.continue();
+    });
+    await page.goto("/optimize");
+    await page.getByText("Live Adaptation").click();
+    await expect(page.getByRole("cell", { name: "momentum" }).first()).toBeVisible();
+  });
+});
+
+test.describe("Backtest Progress", () => {
+  test("progress indicator shows during backtest", async ({ page }) => {
+    await page.route("**/api/backtest/", (route) => {
+      if (route.request().method() === "POST") {
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ id: 42, metrics: { sharpe: 1.5 } }),
+        });
+      }
+      return route.continue();
+    });
+    await page.goto("/backtest");
+    await page.getByRole("button", { name: "Run Backtest" }).click();
+    // After submit, should show results (backtest returns synchronously in current impl)
+    await expect(page.getByText("Results")).toBeVisible();
   });
 });

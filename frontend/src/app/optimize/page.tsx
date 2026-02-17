@@ -89,6 +89,13 @@ export default function OptimizePage() {
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
 
+  // Live Adaptation
+  const [showAdaptation, setShowAdaptation] = useState(false);
+  const [adaptations, setAdaptations] = useState<Record<string, unknown>[]>([]);
+  const [adaptStrategy, setAdaptStrategy] = useState("momentum");
+  const [expandedAdaptId, setExpandedAdaptId] = useState<number | null>(null);
+  const [adaptHistory, setAdaptHistory] = useState<Record<string, unknown>[]>([]);
+
   const isAutoMode = strategyType === "auto";
 
   const { lastMessage } = useWebSocket("/ws/optimize");
@@ -111,6 +118,39 @@ export default function OptimizePage() {
   useEffect(() => {
     api.get<JobSummary[]>("/api/optimize/").then(setJobs).catch(() => {});
   }, []);
+
+  const loadAdaptations = () => {
+    api.get<Record<string, unknown>[]>("/api/optimize/live").then(setAdaptations).catch(() => {});
+  };
+
+  const createAdaptation = async () => {
+    try {
+      await api.post("/api/optimize/live", { strategy_type: adaptStrategy });
+      loadAdaptations();
+    } catch {}
+  };
+
+  const stopAdaptation = async (id: number) => {
+    try {
+      await api.delete(`/api/optimize/live/${id}`);
+      loadAdaptations();
+    } catch {}
+  };
+
+  const loadAdaptHistory = async (id: number) => {
+    if (expandedAdaptId === id) {
+      setExpandedAdaptId(null);
+      return;
+    }
+    try {
+      const res = await api.get<Record<string, unknown>[]>(`/api/optimize/live/${id}/history`);
+      setAdaptHistory(res);
+      setExpandedAdaptId(id);
+    } catch {
+      setAdaptHistory([]);
+      setExpandedAdaptId(id);
+    }
+  };
 
   // Handle WS progress
   useEffect(() => {
@@ -682,6 +722,110 @@ export default function OptimizePage() {
           </table>
         </div>
       )}
+
+      {/* Live Adaptation */}
+      <div className="bg-white rounded-lg shadow p-4 mt-6">
+        <button
+          onClick={() => { setShowAdaptation(!showAdaptation); if (!showAdaptation) loadAdaptations(); }}
+          className="text-lg font-semibold w-full text-left"
+        >
+          {showAdaptation ? "▼" : "▶"} Live Adaptation
+        </button>
+        {showAdaptation && (
+          <div className="mt-4">
+            {/* Create form */}
+            <div className="flex gap-3 mb-4 items-end">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Strategy</label>
+                <select
+                  value={adaptStrategy}
+                  onChange={(e) => setAdaptStrategy(e.target.value)}
+                  className="border rounded px-3 py-2"
+                >
+                  <option value="momentum">Momentum</option>
+                  <option value="mean_reversion">Mean Reversion</option>
+                  <option value="stat_arb">Stat Arb</option>
+                  <option value="market_making">Market Making</option>
+                </select>
+              </div>
+              <button onClick={createAdaptation} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                Create Adaptation
+              </button>
+            </div>
+
+            {/* Active adaptations table */}
+            {adaptations.length === 0 ? (
+              <p className="text-gray-500 text-sm">No active adaptations</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500 border-b">
+                    <th className="py-2">ID</th>
+                    <th className="py-2">Strategy</th>
+                    <th className="py-2">Next Run</th>
+                    <th className="py-2">Status</th>
+                    <th className="py-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {adaptations.map((a) => (
+                    <>
+                      <tr key={Number(a.id)} className="border-t hover:bg-gray-50">
+                        <td className="py-2">
+                          <button className="text-blue-600 hover:underline" onClick={() => loadAdaptHistory(Number(a.id))}>
+                            {expandedAdaptId === Number(a.id) ? "▼" : "▶"} {String(a.id)}
+                          </button>
+                        </td>
+                        <td className="py-2">{String(a.strategy_type)}</td>
+                        <td className="py-2 text-gray-500">{String(a.next_run || "-")}</td>
+                        <td className="py-2">{String(a.status || "active")}</td>
+                        <td className="py-2">
+                          <button
+                            onClick={() => stopAdaptation(Number(a.id))}
+                            className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded hover:bg-red-200"
+                          >
+                            Stop
+                          </button>
+                        </td>
+                      </tr>
+                      {expandedAdaptId === Number(a.id) && (
+                        <tr key={`history-${a.id}`}>
+                          <td colSpan={5} className="py-2 px-4 bg-gray-50">
+                            {adaptHistory.length === 0 ? (
+                              <p className="text-gray-500 text-sm">No adaptation events yet</p>
+                            ) : (
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className="text-left text-gray-400">
+                                    <th className="py-1">Trigger</th>
+                                    <th className="py-1">Proposed</th>
+                                    <th className="py-1">Applied</th>
+                                    <th className="py-1">Status</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {adaptHistory.map((h, i) => (
+                                    <tr key={i} className="border-t">
+                                      <td className="py-1">{String(h.trigger_type)}</td>
+                                      <td className="py-1 font-mono">{JSON.stringify(h.proposed_params)}</td>
+                                      <td className="py-1 font-mono">{JSON.stringify(h.applied_params)}</td>
+                                      <td className="py-1">{String(h.status)}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
