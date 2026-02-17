@@ -59,6 +59,9 @@ app.include_router(portfolio_goals.router, prefix="/api/portfolio/goals", tags=[
 app.include_router(alerts.router, prefix="/api/alerts", tags=["alerts"])
 app.include_router(agent.router, prefix="/api/agent", tags=["agent"])
 app.include_router(safety.router, prefix="/api/safety", tags=["safety"])
+from backend.api.routes import live_adapt  # noqa: E402
+
+app.include_router(live_adapt.router, prefix="/api/optimize", tags=["live-adaptation"])
 app.include_router(optimize.router, prefix="/api/optimize", tags=["optimize"])
 
 from backend.api.ws import prices, backtest_ws, trades, ai_chat, alerts_ws, agent_ws, optimize_ws  # noqa: E402

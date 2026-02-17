@@ -3,6 +3,7 @@ from backend.models.ai_conversation import AIConversation
 from backend.models.alert_config import AlertConfig
 from backend.models.alert_history import AlertHistory
 from backend.models.backtest_result import BacktestResult
+from backend.models.live_adaptation import AdaptationEvent, LiveAdaptationConfig
 from backend.models.optimization_job import OptimizationJob
 from backend.models.portfolio_goal import PortfolioGoal
 from backend.models.scheduled_job import ScheduledJob
@@ -13,11 +14,13 @@ from backend.models.user import User
 from backend.models.watchlist import Watchlist
 
 __all__ = [
+    "AdaptationEvent",
     "AgentLog",
     "AIConversation",
     "AlertConfig",
     "AlertHistory",
     "BacktestResult",
+    "LiveAdaptationConfig",
     "OptimizationJob",
     "PortfolioGoal",
     "ScheduledJob",

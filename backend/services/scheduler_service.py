@@ -35,6 +35,16 @@ class SchedulerService:
             self._add_job_to_scheduler(job)
         logger.info(f"Loaded {len(jobs)} scheduled jobs")
 
+        # Load active adaptation configs
+        from backend.models.live_adaptation import LiveAdaptationConfig
+        configs = self.db.query(LiveAdaptationConfig).filter(
+            LiveAdaptationConfig.status == "active"
+        ).all()
+        for config in configs:
+            self.register_adaptation(config)
+        if configs:
+            logger.info(f"Loaded {len(configs)} live adaptation configs")
+
     def _add_job_to_scheduler(self, job: ScheduledJob):
         job_id = f"job_{job.id}"
         config = json.loads(job.config)
@@ -102,6 +112,39 @@ class SchedulerService:
         self.db.commit()
         return True
 
+    def register_adaptation(self, config) -> None:
+        """Register a live adaptation config as a scheduled job."""
+        job_id = f"adaptation_{config.id}"
+        handler = _get_job_handler("live_adaptation")
+        if handler:
+            try:
+                self.scheduler.add_job(
+                    handler,
+                    trigger=CronTrigger.from_crontab(config.schedule),
+                    id=job_id,
+                    replace_existing=True,
+                    kwargs={"config": {"config_id": config.id}, "user_id": config.user_id},
+                )
+            except RuntimeError:
+                pass
+
+    def unregister_adaptation(self, config_id: int) -> None:
+        """Remove a live adaptation job from the scheduler."""
+        try:
+            self.scheduler.remove_job(f"adaptation_{config_id}")
+        except Exception:
+            pass
+
+    def get_adaptation_next_run(self, config_id: int) -> str | None:
+        """Get next run time for an adaptation config."""
+        try:
+            job = self.scheduler.get_job(f"adaptation_{config_id}")
+            if job and job.next_run_time:
+                return str(job.next_run_time)
+        except Exception:
+            pass
+        return None
+
     def get_status(self) -> list[dict]:
         scheduler_jobs = self.scheduler.get_jobs()
         return [
@@ -116,6 +159,7 @@ def _get_job_handler(job_type: str):
         "portfolio_check": _run_portfolio_check,
         "ai_analysis": _run_ai_analysis,
         "alert_check": _run_alert_check,
+        "live_adaptation": _run_live_adaptation,
     }
     return handlers.get(job_type)
 
@@ -146,3 +190,76 @@ async def _run_ai_analysis(config: dict, user_id: str):
 
 async def _run_alert_check(config: dict, user_id: str):
     logger.info(f"Running alert check for user {user_id}")
+
+
+async def _run_live_adaptation(config: dict, user_id: str):
+    """Run a live adaptation cycle: regime detection + re-optimization."""
+    logger.info(f"Running live adaptation for user {user_id}, config_id={config.get('config_id')}")
+    from backend.core.database import SessionLocal
+    from backend.services.live_adapter_service import LiveAdapterService
+    from backend.services.regime_detector import RegimeDetector
+    from backend.models.live_adaptation import LiveAdaptationConfig
+
+    db = SessionLocal()
+    try:
+        config_id = config["config_id"]
+        adapter_svc = LiveAdapterService(db)
+        adaptation_config = db.query(LiveAdaptationConfig).filter(
+            LiveAdaptationConfig.id == config_id
+        ).first()
+        if not adaptation_config or adaptation_config.status != "active":
+            return
+
+        # Run regime detection first
+        try:
+            from puffin.data import YFinanceProvider
+            from backend.models.strategy_config import StrategyConfig
+            import json as _json
+            from datetime import date, timedelta
+
+            strategy = db.query(StrategyConfig).filter(
+                StrategyConfig.id == adaptation_config.strategy_id
+            ).first()
+            if strategy:
+                params = _json.loads(strategy.params) if strategy.params else {}
+                symbol = params.get("symbol", "SPY")
+                end_date = date.today().isoformat()
+                start_date = (date.today() - timedelta(days=adaptation_config.trailing_window)).isoformat()
+                provider = YFinanceProvider()
+                data = provider.get_ohlcv(symbol, start_date, end_date)
+
+                detector = RegimeDetector()
+                regime_events = detector.detect_regime_change(data, adaptation_config)
+
+                if regime_events:
+                    # Regime changed — trigger adaptation with regime info
+                    regime_type = regime_events[0]["type"]
+                    logger.info(f"Regime change detected: {regime_type}")
+                    adapter_svc.run_adaptation(
+                        config_id, trigger_type="regime", regime_type=regime_type
+                    )
+                    return
+        except Exception as e:
+            logger.warning(f"Regime detection failed: {e}")
+
+        # No regime change — run scheduled adaptation
+        event = adapter_svc.run_adaptation(config_id, trigger_type="scheduled")
+
+        # Broadcast result via WebSocket
+        if event:
+            try:
+                import asyncio
+                from backend.api.ws.optimize_ws import broadcast_optimize_progress
+                loop = asyncio.get_event_loop()
+                loop.create_task(broadcast_optimize_progress({
+                    "type": "adaptation_result",
+                    "config_id": config_id,
+                    "trigger_type": event.trigger_type,
+                    "regime_type": event.regime_type,
+                    "status": event.status,
+                    "reason": event.reason,
+                }))
+            except Exception:
+                pass
+    finally:
+        db.close()
