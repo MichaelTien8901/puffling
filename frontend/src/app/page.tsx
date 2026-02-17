@@ -1,8 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { api } from "@/lib/api";
 import { useWebSocket } from "@/hooks/useWebSocket";
+
+interface PriceEntry {
+  price: number;
+  prev: number | null;
+  timestamp: number;
+}
+
+const WATCHLIST = ["SPY", "QQQ", "AAPL", "MSFT"];
 
 export default function Dashboard() {
   const [positions, setPositions] = useState<Record<string, unknown>[]>([]);
@@ -10,7 +18,40 @@ export default function Dashboard() {
   const [activeStrategies, setActiveStrategies] = useState<Record<string, unknown>[]>([]);
   const [goals, setGoals] = useState<Record<string, unknown>[]>([]);
   const [alerts, setAlerts] = useState<Record<string, unknown>[]>([]);
+  const [prices, setPrices] = useState<Map<string, PriceEntry>>(new Map());
   const { lastMessage: alertMsg } = useWebSocket("/ws/alerts");
+  const { lastMessage: priceMsg, send: priceSend } = useWebSocket("/ws/prices");
+  const subscribedRef = useRef(false);
+
+  const subscribeToPrices = useCallback(() => {
+    if (subscribedRef.current || !priceSend) return;
+    for (const sym of WATCHLIST) {
+      priceSend(JSON.stringify({ action: "subscribe", symbol: sym }));
+    }
+    subscribedRef.current = true;
+  }, [priceSend]);
+
+  useEffect(() => {
+    if (priceMsg) {
+      const data = JSON.parse(priceMsg);
+      if (data.status === "connected") {
+        subscribeToPrices();
+        return;
+      }
+      if (data.symbol && data.price != null) {
+        setPrices((prev) => {
+          const next = new Map(prev);
+          const existing = next.get(data.symbol);
+          next.set(data.symbol, {
+            price: data.price,
+            prev: existing?.price ?? null,
+            timestamp: data.timestamp,
+          });
+          return next;
+        });
+      }
+    }
+  }, [priceMsg, subscribeToPrices]);
 
   useEffect(() => {
     api.get<Record<string, unknown>[]>("/api/broker/positions").then(setPositions).catch(() => {});
@@ -46,6 +87,33 @@ export default function Dashboard() {
                     <td>{String(p.avg_price)}</td><td>{String(p.current_price)}</td>
                   </tr>
                 ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Live Prices */}
+        <div className="bg-white rounded-lg shadow p-4">
+          <h2 className="text-lg font-semibold mb-3">Live Prices</h2>
+          {prices.size === 0 ? (
+            <p className="text-gray-500">Connecting...</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead><tr className="text-left text-gray-500"><th>Symbol</th><th className="text-right">Price</th></tr></thead>
+              <tbody>
+                {WATCHLIST.map((sym) => {
+                  const entry = prices.get(sym);
+                  if (!entry) return null;
+                  const direction = entry.prev == null ? null : entry.price > entry.prev ? "up" : entry.price < entry.prev ? "down" : null;
+                  return (
+                    <tr key={sym} className="border-t">
+                      <td className="font-medium">{sym}</td>
+                      <td className={`text-right ${direction === "up" ? "text-green-600" : direction === "down" ? "text-red-600" : ""}`}>
+                        {direction === "up" && "\u25B2 "}{direction === "down" && "\u25BC "}{entry.price.toFixed(2)}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}

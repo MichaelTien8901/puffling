@@ -15,6 +15,13 @@ test.describe("Dashboard", () => {
   });
 });
 
+test.describe("Live Prices", () => {
+  test("live prices panel shows on dashboard", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Live Prices" })).toBeVisible();
+  });
+});
+
 test.describe("Navigation", () => {
   test("sidebar links navigate to correct pages", async ({ page }) => {
     await page.goto("/");
