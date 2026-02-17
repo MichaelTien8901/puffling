@@ -30,6 +30,7 @@ export default function TradesPage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [orderResult, setOrderResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [pendingOrder, setPendingOrder] = useState<Record<string, unknown> | null>(null);
 
   const showAdvanced = assetType !== "STK" || orderType !== "market";
 
@@ -40,45 +41,54 @@ export default function TradesPage() {
 
   useEffect(() => { loadData(); }, []);
 
-  const submitOrder = async () => {
-    if (!symbol || !qty) return;
-    setSubmitting(true);
-    setOrderResult(null);
-    try {
-      const body: Record<string, unknown> = {
-        symbol: symbol.toUpperCase(),
-        side,
-        qty: parseFloat(qty),
-        order_type: orderType,
-        asset_type: assetType,
-        exchange,
-        currency,
-      };
-      if (assetType === "OPT") {
-        if (expiry) body.expiry = expiry;
-        if (strike) body.strike = parseFloat(strike);
-        body.right = right;
-        if (multiplier) body.multiplier = parseInt(multiplier);
-      }
-      if (assetType === "FUT") {
-        if (expiry) body.expiry = expiry;
-        if (multiplier) body.multiplier = parseInt(multiplier);
-      }
-      if (assetType === "CASH" && pairCurrency) {
-        body.pair_currency = pairCurrency;
-      }
-      if (orderType === "limit" || orderType === "stop_limit") {
-        if (limitPrice) body.limit_price = parseFloat(limitPrice);
-      }
-      if (orderType === "stop" || orderType === "stop_limit") {
-        if (stopPrice) body.stop_price = parseFloat(stopPrice);
-      }
-      if (orderType !== "market") {
-        body.time_in_force = timeInForce;
-      }
+  const buildOrder = (): Record<string, unknown> => {
+    const body: Record<string, unknown> = {
+      symbol: symbol.toUpperCase(),
+      side,
+      qty: parseFloat(qty),
+      order_type: orderType,
+      asset_type: assetType,
+      exchange,
+      currency,
+    };
+    if (assetType === "OPT") {
+      if (expiry) body.expiry = expiry;
+      if (strike) body.strike = parseFloat(strike);
+      body.right = right;
+      if (multiplier) body.multiplier = parseInt(multiplier);
+    }
+    if (assetType === "FUT") {
+      if (expiry) body.expiry = expiry;
+      if (multiplier) body.multiplier = parseInt(multiplier);
+    }
+    if (assetType === "CASH" && pairCurrency) {
+      body.pair_currency = pairCurrency;
+    }
+    if (orderType === "limit" || orderType === "stop_limit") {
+      if (limitPrice) body.limit_price = parseFloat(limitPrice);
+    }
+    if (orderType === "stop" || orderType === "stop_limit") {
+      if (stopPrice) body.stop_price = parseFloat(stopPrice);
+    }
+    if (orderType !== "market") {
+      body.time_in_force = timeInForce;
+    }
+    return body;
+  };
 
-      const res = await api.post<Record<string, unknown>>("/api/broker/order", body);
-      const summary = res.summary ? String(res.summary) : `${side} ${qty} ${symbol.toUpperCase()}`;
+  const reviewOrder = () => {
+    if (!symbol || !qty) return;
+    setOrderResult(null);
+    setPendingOrder(buildOrder());
+  };
+
+  const confirmOrder = async () => {
+    if (!pendingOrder) return;
+    setPendingOrder(null);
+    setSubmitting(true);
+    try {
+      const res = await api.post<Record<string, unknown>>("/api/broker/order", pendingOrder);
+      const summary = res.summary ? String(res.summary) : `${pendingOrder.side} ${pendingOrder.qty} ${pendingOrder.symbol}`;
       setOrderResult({ ok: true, message: `Order submitted: ${summary}` });
       setSymbol("");
       setQty("");
@@ -299,11 +309,11 @@ export default function TradesPage() {
 
         <div className="flex items-end">
           <button
-            onClick={submitOrder}
+            onClick={reviewOrder}
             disabled={submitting || !symbol || !qty}
             className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
           >
-            {submitting ? "Submitting..." : "Submit Order"}
+            {submitting ? "Submitting..." : "Review Order"}
           </button>
         </div>
         {orderResult && (
@@ -312,6 +322,89 @@ export default function TradesPage() {
           </div>
         )}
       </div>
+
+      {pendingOrder && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" data-testid="confirm-modal">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold mb-4">Confirm Order</h3>
+            <dl className="text-sm space-y-2 mb-6">
+              <div className="flex justify-between">
+                <dt className="text-gray-500">Symbol</dt>
+                <dd className="font-medium">{String(pendingOrder.symbol)}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-gray-500">Side</dt>
+                <dd className={`font-medium ${pendingOrder.side === "BUY" ? "text-green-600" : "text-red-600"}`}>{String(pendingOrder.side)}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-gray-500">Quantity</dt>
+                <dd className="font-medium">{String(pendingOrder.qty)}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-gray-500">Order Type</dt>
+                <dd className="font-medium">{String(pendingOrder.order_type)}</dd>
+              </div>
+              {!!pendingOrder.asset_type && pendingOrder.asset_type !== "STK" && (
+                <div className="flex justify-between">
+                  <dt className="text-gray-500">Asset Type</dt>
+                  <dd className="font-medium">{String(pendingOrder.asset_type)}</dd>
+                </div>
+              )}
+              {!!pendingOrder.expiry && (
+                <div className="flex justify-between">
+                  <dt className="text-gray-500">Expiry</dt>
+                  <dd className="font-medium">{String(pendingOrder.expiry)}</dd>
+                </div>
+              )}
+              {!!pendingOrder.strike && (
+                <div className="flex justify-between">
+                  <dt className="text-gray-500">Strike</dt>
+                  <dd className="font-medium">{String(pendingOrder.strike)}</dd>
+                </div>
+              )}
+              {!!pendingOrder.right && pendingOrder.asset_type === "OPT" && (
+                <div className="flex justify-between">
+                  <dt className="text-gray-500">Right</dt>
+                  <dd className="font-medium">{pendingOrder.right === "C" ? "Call" : "Put"}</dd>
+                </div>
+              )}
+              {!!pendingOrder.limit_price && (
+                <div className="flex justify-between">
+                  <dt className="text-gray-500">Limit Price</dt>
+                  <dd className="font-medium">${String(pendingOrder.limit_price)}</dd>
+                </div>
+              )}
+              {!!pendingOrder.stop_price && (
+                <div className="flex justify-between">
+                  <dt className="text-gray-500">Stop Price</dt>
+                  <dd className="font-medium">${String(pendingOrder.stop_price)}</dd>
+                </div>
+              )}
+              {!!pendingOrder.time_in_force && (
+                <div className="flex justify-between">
+                  <dt className="text-gray-500">Time in Force</dt>
+                  <dd className="font-medium">{String(pendingOrder.time_in_force)}</dd>
+                </div>
+              )}
+            </dl>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setPendingOrder(null)}
+                className="flex-1 px-4 py-2 border rounded hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmOrder}
+                data-testid="confirm-order"
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {pnl && (
         <div className="bg-white rounded-lg shadow p-4 mb-6">

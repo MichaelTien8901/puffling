@@ -450,6 +450,26 @@ test.describe("Trades", () => {
     await expect(page.locator('[data-testid="right"]')).not.toBeVisible();
   });
 
+  test("order confirmation modal shows and cancels", async ({ page }) => {
+    await page.goto("/trades");
+
+    // Fill in order form
+    await page.locator('input[placeholder="SPY"]').fill("AAPL");
+    await page.locator('input[placeholder="10"]').fill("5");
+
+    // Click Review Order — modal should appear
+    await page.getByRole("button", { name: "Review Order" }).click();
+    const modal = page.locator('[data-testid="confirm-modal"]');
+    await expect(modal).toBeVisible();
+    await expect(modal.getByText("AAPL")).toBeVisible();
+    await expect(modal.getByText("BUY")).toBeVisible();
+    await expect(modal.getByText("5")).toBeVisible();
+
+    // Cancel — modal should disappear
+    await page.getByRole("button", { name: "Cancel" }).click();
+    await expect(modal).not.toBeVisible();
+  });
+
   test("populated table and P&L with mocked data", async ({ page }) => {
     await page.route("**/api/monitor/trades", (route) =>
       route.fulfill({
