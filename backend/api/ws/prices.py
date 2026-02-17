@@ -1,19 +1,26 @@
 import asyncio
 import json
+import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from backend.core.config import settings
+
 router = APIRouter()
+
+_logger = logging.getLogger(__name__)
 
 _price_clients: list[WebSocket] = []
 _subscriptions: dict[int, set[str]] = {}
 _poll_task: asyncio.Task | None = None
 _executor = ThreadPoolExecutor(max_workers=2)
 
+_ib_client = None
 
-def _fetch_prices(symbols: list[str]) -> dict[str, float]:
+
+def _fetch_yfinance(symbols: list[str]) -> dict[str, float]:
     """Fetch last prices via yfinance (runs in thread)."""
     import yfinance as yf
 
@@ -27,23 +34,83 @@ def _fetch_prices(symbols: list[str]) -> dict[str, float]:
     return results
 
 
+def _fetch_alpaca(symbols: list[str]) -> dict[str, float]:
+    """Fetch last prices via Alpaca market data API."""
+    from alpaca.data.historical import StockHistoricalDataClient
+    from alpaca.data.requests import StockLatestTradeRequest
+
+    client = StockHistoricalDataClient(
+        settings.alpaca_api_key, settings.alpaca_secret_key
+    )
+    trades = client.get_stock_latest_trade(
+        StockLatestTradeRequest(symbol_or_symbols=symbols)
+    )
+    return {sym: float(trade.price) for sym, trade in trades.items()}
+
+
+def _fetch_ibkr(symbols: list[str]) -> dict[str, float]:
+    """Fetch last prices via IB Gateway / TWS."""
+    from ib_insync import IB, Stock
+
+    global _ib_client
+    if _ib_client is None or not _ib_client.isConnected():
+        _ib_client = IB()
+        _ib_client.connect(
+            settings.ibkr_host, settings.ibkr_port, clientId=settings.ibkr_client_id
+        )
+
+    contracts = [Stock(sym, "SMART", "USD") for sym in symbols]
+    _ib_client.qualifyContracts(*contracts)
+    tickers = _ib_client.reqTickers(*contracts)
+    results = {}
+    for ticker in tickers:
+        sym = ticker.contract.symbol
+        price = ticker.marketPrice()
+        if price == price:  # not NaN
+            results[sym] = float(price)
+    return results
+
+
+def _resolve_fetcher():
+    """Pick the best available price provider."""
+    if settings.alpaca_api_key and settings.alpaca_secret_key:
+        _logger.info("Price provider: Alpaca")
+        return _fetch_alpaca
+    if settings.broker == "ibkr":
+        _logger.info("Price provider: IBKR")
+        return _fetch_ibkr
+    _logger.info("Price provider: yfinance")
+    return _fetch_yfinance
+
+
 async def _poll_prices():
     """Background loop: fetch prices for all subscribed symbols every 10s."""
     loop = asyncio.get_event_loop()
+    fetcher = _resolve_fetcher()
     while _price_clients:
         all_symbols: set[str] = set()
         for subs in _subscriptions.values():
             all_symbols.update(subs)
         if all_symbols:
+            sym_list = list(all_symbols)
             try:
                 prices = await loop.run_in_executor(
-                    _executor, _fetch_prices, list(all_symbols)
+                    _executor, fetcher, sym_list
                 )
-                ts = time.time()
-                for sym, price in prices.items():
-                    await broadcast_price(sym, price, ts)
             except Exception:
-                pass
+                _logger.warning(
+                    "Primary provider failed, falling back to yfinance",
+                    exc_info=True,
+                )
+                try:
+                    prices = await loop.run_in_executor(
+                        _executor, _fetch_yfinance, sym_list
+                    )
+                except Exception:
+                    prices = {}
+            ts = time.time()
+            for sym, price in prices.items():
+                await broadcast_price(sym, price, ts)
         await asyncio.sleep(10)
 
 
