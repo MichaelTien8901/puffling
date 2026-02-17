@@ -389,10 +389,10 @@ test.describe("Optimize", () => {
 
     // Comparison table should appear
     await expect(page.getByRole("heading", { name: "Strategy Comparison" })).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText("Recommended")).toBeVisible();
-    await expect(page.getByText("momentum")).toBeVisible();
-    await expect(page.getByText("Not recommended")).toBeVisible();
-    await expect(page.getByText("1.450")).toBeVisible();
+    await expect(page.getByText("Recommended:", { exact: false })).toBeVisible();
+    await expect(page.getByRole("button", { name: /momentum/ })).toBeVisible();
+    await expect(page.getByText("Not recommended", { exact: true })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "1.450" })).toBeVisible();
   });
 
   test("optimization history displays with mocked jobs", async ({ page }) => {
@@ -453,7 +453,7 @@ test.describe("Trades", () => {
 
     // Verify table has trade data
     await expect(page.getByText("SPY")).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText("BUY")).toBeVisible();
+    await expect(page.getByRole("cell", { name: "BUY" })).toBeVisible();
     await expect(page.getByText("AAPL")).toBeVisible();
 
     // Verify P&L section

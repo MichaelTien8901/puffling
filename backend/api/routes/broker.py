@@ -15,6 +15,19 @@ class OrderRequest(BaseModel):
     side: str
     qty: float
     order_type: str = "market"
+    # Contract spec fields for options, futures, forex, non-US stocks
+    asset_type: str = "STK"
+    exchange: str = "SMART"
+    currency: str = "USD"
+    expiry: str | None = None
+    strike: float | None = None
+    right: str | None = None
+    multiplier: str | None = None
+    pair_currency: str | None = None
+    # Advanced order fields
+    limit_price: float | None = None
+    stop_price: float | None = None
+    time_in_force: str = "DAY"
 
 
 class ConfirmRequest(BaseModel):
@@ -36,7 +49,14 @@ def get_positions(db: Session = Depends(get_db)):
 @router.post("/order")
 def submit_order(req: OrderRequest, db: Session = Depends(get_db)):
     svc = BrokerService(db)
-    return svc.submit_order(req.symbol, req.side, req.qty, req.order_type)
+    return svc.submit_order(
+        symbol=req.symbol, side=req.side, qty=req.qty, order_type=req.order_type,
+        asset_type=req.asset_type, exchange=req.exchange, currency=req.currency,
+        expiry=req.expiry, strike=req.strike, right=req.right,
+        multiplier=req.multiplier, pair_currency=req.pair_currency,
+        limit_price=req.limit_price, stop_price=req.stop_price,
+        time_in_force=req.time_in_force,
+    )
 
 
 @router.post("/order/confirm")

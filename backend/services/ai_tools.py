@@ -67,14 +67,25 @@ AI_TOOL_SCHEMAS = [
     },
     {
         "name": "place_order",
-        "description": "Place a trading order (requires user confirmation)",
+        "description": "Place a trading order (requires user confirmation). Supports stocks, options, futures, forex, and non-US stocks.",
         "parameters": {
             "type": "object",
             "properties": {
                 "symbol": {"type": "string"},
                 "side": {"type": "string", "enum": ["buy", "sell"]},
                 "qty": {"type": "number"},
-                "order_type": {"type": "string", "enum": ["market", "limit"]},
+                "order_type": {"type": "string", "enum": ["market", "limit", "stop", "stop_limit"]},
+                "asset_type": {"type": "string", "enum": ["STK", "OPT", "FUT", "CASH"], "description": "Asset type (default STK)"},
+                "exchange": {"type": "string", "description": "Exchange (default SMART)"},
+                "currency": {"type": "string", "description": "Currency (default USD)"},
+                "expiry": {"type": "string", "description": "Expiry YYYYMMDD for options/futures"},
+                "strike": {"type": "number", "description": "Strike price for options"},
+                "right": {"type": "string", "enum": ["C", "P"], "description": "Call or Put for options"},
+                "multiplier": {"type": "string", "description": "Contract multiplier"},
+                "pair_currency": {"type": "string", "description": "Second currency for forex (e.g. JPY)"},
+                "limit_price": {"type": "number", "description": "Limit price for limit/stop_limit orders"},
+                "stop_price": {"type": "number", "description": "Stop price for stop/stop_limit orders"},
+                "time_in_force": {"type": "string", "enum": ["DAY", "GTC", "IOC", "FOK"]},
             },
             "required": ["symbol", "side", "qty"],
         },
@@ -120,7 +131,18 @@ def execute_tool(tool_name: str, args: dict, user_id: str, db) -> dict:
 
     elif tool_name == "place_order":
         from backend.services.broker_service import BrokerService
-        return BrokerService(db).submit_order(args["symbol"], args["side"], args["qty"], args.get("order_type", "market"))
+        return BrokerService(db).submit_order(
+            symbol=args["symbol"], side=args["side"], qty=args["qty"],
+            order_type=args.get("order_type", "market"),
+            asset_type=args.get("asset_type", "STK"),
+            exchange=args.get("exchange", "SMART"),
+            currency=args.get("currency", "USD"),
+            expiry=args.get("expiry"), strike=args.get("strike"),
+            right=args.get("right"), multiplier=args.get("multiplier"),
+            pair_currency=args.get("pair_currency"),
+            limit_price=args.get("limit_price"), stop_price=args.get("stop_price"),
+            time_in_force=args.get("time_in_force", "DAY"),
+        )
 
     elif tool_name == "check_risk":
         from backend.services.risk_service import RiskService
