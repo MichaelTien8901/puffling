@@ -24,6 +24,14 @@ class StrategyOptimizeRequest(BaseModel):
     train_ratio: float = 0.7
 
 
+class SweepRequest(BaseModel):
+    symbols: list[str]
+    start: str
+    end: str
+    n_splits: int = 5
+    train_ratio: float = 0.7
+
+
 class ModelTuneRequest(BaseModel):
     model_type: str
     symbols: list[str]
@@ -44,6 +52,25 @@ def _run_strategy_optimization(job_id: int, user_id: str, req: StrategyOptimizeR
             start=req.start,
             end=req.end,
             param_grid=req.param_grid,
+            n_splits=req.n_splits,
+            train_ratio=req.train_ratio,
+        )
+    except Exception:
+        pass  # Error status already set in service
+    finally:
+        db.close()
+
+
+def _run_strategy_sweep(job_id: int, user_id: str, req: SweepRequest):
+    db = SessionLocal()
+    try:
+        svc = OptimizerService(db)
+        svc.run_strategy_sweep(
+            job_id=job_id,
+            user_id=user_id,
+            symbols=req.symbols,
+            start=req.start,
+            end=req.end,
             n_splits=req.n_splits,
             train_ratio=req.train_ratio,
         )
@@ -115,6 +142,39 @@ def submit_strategy_optimization(
     return {"job_id": job.id, "status": "running", "total_combinations": total}
 
 
+@router.post("/sweep")
+def submit_strategy_sweep(
+    req: SweepRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    job = OptimizationJob(
+        user_id=user.id,
+        job_type="sweep",
+        strategy_type="all",
+        config=json.dumps({
+            "symbols": req.symbols,
+            "start": req.start,
+            "end": req.end,
+            "n_splits": req.n_splits,
+            "train_ratio": req.train_ratio,
+        }),
+        status="pending",
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+
+    thread = threading.Thread(
+        target=_run_strategy_sweep,
+        args=(job.id, user.id, req),
+        daemon=True,
+    )
+    thread.start()
+
+    return {"job_id": job.id, "status": "running", "strategy_types": list(OptimizerService.STRATEGY_TYPES)}
+
+
 @router.post("/model")
 def submit_model_tuning(
     req: ModelTuneRequest,
@@ -162,6 +222,8 @@ def list_jobs(
                 parsed = json.loads(j.results)
                 if isinstance(parsed, list) and parsed:
                     best_sharpe = parsed[0].get("mean_sharpe")
+                elif isinstance(parsed, dict) and "recommendation" in parsed:
+                    best_sharpe = (parsed.get("recommendation") or {}).get("mean_sharpe")
             except (json.JSONDecodeError, KeyError):
                 pass
         result.append({
@@ -196,9 +258,14 @@ def get_job(
     }
     if job.results:
         try:
-            response["results"] = json.loads(job.results)
-            if isinstance(response["results"], list) and response["results"]:
-                response["best_params"] = response["results"][0].get("params")
+            parsed = json.loads(job.results)
+            response["results"] = parsed
+            if job.job_type == "sweep" and isinstance(parsed, dict):
+                # Sweep results: {by_strategy: {...}, recommendation: {...}}
+                response["recommendation"] = parsed.get("recommendation")
+                response["best_params"] = (parsed.get("recommendation") or {}).get("best_params")
+            elif isinstance(parsed, list) and parsed:
+                response["best_params"] = parsed[0].get("params")
         except json.JSONDecodeError:
             response["results"] = None
     return response

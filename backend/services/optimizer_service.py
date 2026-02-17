@@ -41,6 +41,8 @@ _cancel_flags: dict[int, threading.Event] = {}
 
 
 class OptimizerService:
+    STRATEGY_TYPES = list(DEFAULT_GRIDS.keys())
+
     def __init__(self, db: Session):
         self.db = db
 
@@ -253,6 +255,171 @@ class OptimizerService:
                 job.results = json.dumps({"error": str(e)})
                 self.db.commit()
             raise
+
+    def run_strategy_sweep(
+        self,
+        job_id: int,
+        user_id: str,
+        symbols: list[str],
+        start: str,
+        end: str,
+        n_splits: int = 5,
+        train_ratio: float = 0.7,
+        top_n_per_strategy: int = 5,
+        progress_callback: Callable | None = None,
+    ) -> dict:
+        """Run optimization across all 4 strategy types and recommend the best."""
+        strategy_types = list(DEFAULT_GRIDS.keys())
+        total_strategies = len(strategy_types)
+
+        # Set up cancellation
+        cancel_event = threading.Event()
+        _cancel_flags[job_id] = cancel_event
+
+        job = self.db.query(OptimizationJob).filter(OptimizationJob.id == job_id).first()
+        if job:
+            job.status = "running"
+            self.db.commit()
+
+        by_strategy: dict[str, list[dict]] = {}
+
+        try:
+            # Fetch data once — shared across all strategies
+            provider = YFinanceProvider()
+            data = provider.get_ohlcv(symbols[0], start, end)
+            self.validate_data_length(len(data), n_splits)
+
+            for strat_idx, strategy_type in enumerate(strategy_types):
+                if cancel_event.is_set():
+                    break
+
+                param_grid = self.get_default_grid(strategy_type)
+                combinations = self._expand_grid(param_grid)
+                total_combos = len(combinations)
+
+                results = []
+                for combo_idx, params in enumerate(combinations):
+                    if cancel_event.is_set():
+                        break
+
+                    strategy = get_strategy(strategy_type, **params)
+                    folds = walk_forward(
+                        strategy, data, train_ratio=train_ratio, n_splits=n_splits
+                    )
+
+                    if not folds:
+                        continue
+
+                    test_sharpes = [f["test_metrics"].get("sharpe_ratio", 0) for f in folds]
+                    test_returns = [f["test_metrics"].get("total_return", 0) for f in folds]
+                    test_drawdowns = [f["test_metrics"].get("max_drawdown", 0) for f in folds]
+                    test_win_rates = [f["test_metrics"].get("win_rate", 0) for f in folds]
+
+                    mean_sharpe = sum(test_sharpes) / len(test_sharpes)
+                    mean_return = sum(test_returns) / len(test_returns)
+                    max_drawdown = min(test_drawdowns)
+                    mean_win_rate = sum(test_win_rates) / len(test_win_rates)
+
+                    # Compute Sharpe std dev for confidence scoring
+                    if len(test_sharpes) > 1:
+                        sharpe_mean = mean_sharpe
+                        sharpe_std = (sum((s - sharpe_mean) ** 2 for s in test_sharpes) / (len(test_sharpes) - 1)) ** 0.5
+                    else:
+                        sharpe_std = 0.0
+
+                    results.append({
+                        "params": params,
+                        "mean_sharpe": mean_sharpe,
+                        "mean_return": mean_return,
+                        "max_drawdown": max_drawdown,
+                        "mean_win_rate": mean_win_rate,
+                        "sharpe_std": sharpe_std,
+                        "folds": len(folds),
+                        "strategy_type": strategy_type,
+                        "recommended": mean_sharpe >= 0,
+                    })
+
+                    if progress_callback:
+                        progress_callback({
+                            "job_id": job_id,
+                            "current_strategy": strategy_type,
+                            "strategy_index": strat_idx + 1,
+                            "total_strategies": total_strategies,
+                            "combo": combo_idx + 1,
+                            "total": total_combos,
+                            "status": "running",
+                        })
+
+                # Rank and keep top N for this strategy
+                results.sort(key=lambda r: (-r["mean_sharpe"], r["max_drawdown"]))
+                results = results[:top_n_per_strategy]
+                for i, r in enumerate(results):
+                    r["rank"] = i + 1
+                by_strategy[strategy_type] = results
+
+            # Build recommendation from global best
+            recommendation = self._build_recommendation(by_strategy)
+
+            sweep_results = {
+                "by_strategy": by_strategy,
+                "recommendation": recommendation,
+            }
+
+            status = "cancelled" if cancel_event.is_set() else "complete"
+            if job:
+                job.status = status
+                job.results = json.dumps(sweep_results)
+                self.db.commit()
+
+            if progress_callback:
+                progress_callback({
+                    "job_id": job_id,
+                    "status": status,
+                    "recommendation": recommendation,
+                })
+
+        except Exception as e:
+            if job:
+                job.status = "error"
+                job.results = json.dumps({"error": str(e)})
+                self.db.commit()
+            raise
+        finally:
+            _cancel_flags.pop(job_id, None)
+
+        return sweep_results
+
+    def _build_recommendation(self, by_strategy: dict[str, list[dict]]) -> dict:
+        """Pick global best by Sharpe, compute confidence from Sharpe std dev."""
+        best_result = None
+        best_strategy = None
+        for strategy_type, results in by_strategy.items():
+            if not results:
+                continue
+            top = results[0]
+            if best_result is None or top["mean_sharpe"] > best_result["mean_sharpe"]:
+                best_result = top
+                best_strategy = strategy_type
+
+        if best_result is None:
+            return {"strategy_type": None, "confidence": "none", "reason": "No results"}
+
+        sharpe_std = best_result.get("sharpe_std", 0)
+        if sharpe_std < 0.3:
+            confidence = "high"
+        elif sharpe_std <= 0.8:
+            confidence = "medium"
+        else:
+            confidence = "low"
+
+        return {
+            "strategy_type": best_strategy,
+            "best_params": best_result["params"],
+            "mean_sharpe": best_result["mean_sharpe"],
+            "sharpe_std": sharpe_std,
+            "confidence": confidence,
+            "recommended": best_result["mean_sharpe"] >= 0,
+        }
 
     def cancel_job(self, job_id: int) -> bool:
         event = _cancel_flags.get(job_id)

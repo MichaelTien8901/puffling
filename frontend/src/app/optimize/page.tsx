@@ -33,6 +33,20 @@ interface OptResult {
   mean_return: number;
   max_drawdown: number;
   mean_win_rate: number;
+  strategy_type?: string;
+  recommended?: boolean;
+}
+
+interface SweepResults {
+  by_strategy: Record<string, OptResult[]>;
+  recommendation: {
+    strategy_type: string | null;
+    best_params: Record<string, unknown>;
+    mean_sharpe: number;
+    sharpe_std: number;
+    confidence: string;
+    recommended: boolean;
+  } | null;
 }
 
 interface JobSummary {
@@ -62,13 +76,29 @@ export default function OptimizePage() {
   const [sortKey, setSortKey] = useState<SortKey>("rank");
   const [sortAsc, setSortAsc] = useState(true);
 
+  const [sweepResults, setSweepResults] = useState<SweepResults | null>(null);
+  const [expandedStrategy, setExpandedStrategy] = useState<string | null>(null);
+  const [sweepProgress, setSweepProgress] = useState<{
+    current_strategy: string;
+    strategy_index: number;
+    total_strategies: number;
+    combo: number;
+    total: number;
+  } | null>(null);
+
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
+
+  const isAutoMode = strategyType === "auto";
 
   const { lastMessage } = useWebSocket("/ws/optimize");
 
   // Initialize param grid when strategy type changes
   useEffect(() => {
+    if (strategyType === "auto") {
+      setParamGrid({});
+      return;
+    }
     const grid = DEFAULT_GRIDS[strategyType] || {};
     const gridStrings: Record<string, string> = {};
     for (const [k, v] of Object.entries(grid)) {
@@ -89,11 +119,20 @@ export default function OptimizePage() {
       const data = JSON.parse(lastMessage);
       if (data.status === "running" && data.combo) {
         setProgress({ combo: data.combo, total: data.total });
+        if (data.current_strategy) {
+          setSweepProgress({
+            current_strategy: data.current_strategy,
+            strategy_index: data.strategy_index,
+            total_strategies: data.total_strategies,
+            combo: data.combo,
+            total: data.total,
+          });
+        }
       }
       if (data.status === "complete" || data.status === "cancelled") {
         setRunning(false);
         setProgress(null);
-        // Refresh jobs and load results
+        setSweepProgress(null);
         api.get<JobSummary[]>("/api/optimize/").then(setJobs).catch(() => {});
       }
     } catch {}
@@ -114,30 +153,49 @@ export default function OptimizePage() {
   const runOptimization = async () => {
     setRunning(true);
     setResults([]);
+    setSweepResults(null);
     setProgress(null);
+    setSweepProgress(null);
     try {
-      const res = await api.post<{ job_id: number }>("/api/optimize/strategy", {
-        strategy_type: strategyType,
-        symbols: symbols.split(",").map((s) => s.trim()),
-        start,
-        end,
-        param_grid: parseGrid(),
-        n_splits: nSplits,
-        train_ratio: trainRatio,
-      });
+      const endpoint = isAutoMode ? "/api/optimize/sweep" : "/api/optimize/strategy";
+      const body = isAutoMode
+        ? {
+            symbols: symbols.split(",").map((s) => s.trim()),
+            start,
+            end,
+            n_splits: nSplits,
+            train_ratio: trainRatio,
+          }
+        : {
+            strategy_type: strategyType,
+            symbols: symbols.split(",").map((s) => s.trim()),
+            start,
+            end,
+            param_grid: parseGrid(),
+            n_splits: nSplits,
+            train_ratio: trainRatio,
+          };
+      const res = await api.post<{ job_id: number }>(endpoint, body);
       setSelectedJobId(res.job_id);
       // Poll for results since WS may not always deliver
       const poll = setInterval(async () => {
         try {
-          const job = await api.get<{ status: string; results?: OptResult[] }>(
-            `/api/optimize/${res.job_id}`
-          );
+          const job = await api.get<{
+            status: string;
+            job_type?: string;
+            results?: OptResult[] | SweepResults;
+          }>(`/api/optimize/${res.job_id}`);
           if (job.status === "complete" || job.status === "cancelled" || job.status === "error") {
             clearInterval(poll);
             setRunning(false);
             setProgress(null);
-            if (job.results && Array.isArray(job.results)) {
-              setResults(job.results);
+            setSweepProgress(null);
+            if (job.results) {
+              if (job.job_type === "sweep" && !Array.isArray(job.results)) {
+                setSweepResults(job.results as SweepResults);
+              } else if (Array.isArray(job.results)) {
+                setResults(job.results as OptResult[]);
+              }
             }
             api.get<JobSummary[]>("/api/optimize/").then(setJobs).catch(() => {});
           }
@@ -155,9 +213,18 @@ export default function OptimizePage() {
   const loadJobResults = async (jobId: number) => {
     setSelectedJobId(jobId);
     try {
-      const job = await api.get<{ results?: OptResult[] }>(`/api/optimize/${jobId}`);
-      if (job.results && Array.isArray(job.results)) {
-        setResults(job.results);
+      const job = await api.get<{
+        job_type?: string;
+        results?: OptResult[] | SweepResults;
+      }>(`/api/optimize/${jobId}`);
+      if (job.results) {
+        if (job.job_type === "sweep" && !Array.isArray(job.results)) {
+          setSweepResults(job.results as SweepResults);
+          setResults([]);
+        } else if (Array.isArray(job.results)) {
+          setResults(job.results as OptResult[]);
+          setSweepResults(null);
+        }
       }
     } catch {}
   };
@@ -184,9 +251,10 @@ export default function OptimizePage() {
     return (a[sortKey] - b[sortKey]) * dir;
   });
 
-  const backtestWithParams = (params: Record<string, unknown>) => {
+  const backtestWithParams = (params: Record<string, unknown>, overrideStrategy?: string) => {
+    const st = overrideStrategy || strategyType;
     const query = new URLSearchParams({
-      strategy_type: strategyType,
+      strategy_type: st,
       params: JSON.stringify(params),
       symbols,
       start,
@@ -195,11 +263,12 @@ export default function OptimizePage() {
     window.location.href = `/backtest?${query.toString()}`;
   };
 
-  const saveAsStrategy = async (params: Record<string, unknown>) => {
+  const saveAsStrategy = async (params: Record<string, unknown>, overrideStrategy?: string) => {
+    const st = overrideStrategy || strategyType;
     try {
       await api.post("/api/strategies/", {
-        name: `${strategyType}_optimized`,
-        strategy_type: strategyType,
+        name: `${st}_optimized`,
+        strategy_type: st,
         params,
       });
       alert("Strategy saved!");
@@ -222,6 +291,7 @@ export default function OptimizePage() {
               onChange={(e) => setStrategyType(e.target.value)}
               className="border rounded px-3 py-2 w-full"
             >
+              <option value="auto">Auto (all strategies)</option>
               <option value="momentum">Momentum</option>
               <option value="mean_reversion">Mean Reversion</option>
               <option value="stat_arb">Stat Arb</option>
@@ -258,21 +328,27 @@ export default function OptimizePage() {
         </div>
 
         {/* Parameter Grid */}
-        <div className="mb-4">
-          <h3 className="text-sm font-medium mb-2">Parameter Grid</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            {Object.entries(paramGrid).map(([key, val]) => (
-              <div key={key} className="flex gap-2 items-center">
-                <label className="text-sm w-32 text-gray-600">{key}</label>
-                <input
-                  className="border rounded px-3 py-1 flex-1 text-sm"
-                  value={val}
-                  onChange={(e) => setParamGrid({ ...paramGrid, [key]: e.target.value })}
-                />
-              </div>
-            ))}
+        {isAutoMode ? (
+          <div className="mb-4 p-3 bg-blue-50 rounded text-sm text-blue-700">
+            Auto mode will evaluate all 4 strategy types using default parameter grids.
           </div>
-        </div>
+        ) : (
+          <div className="mb-4">
+            <h3 className="text-sm font-medium mb-2">Parameter Grid</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {Object.entries(paramGrid).map(([key, val]) => (
+                <div key={key} className="flex gap-2 items-center">
+                  <label className="text-sm w-32 text-gray-600">{key}</label>
+                  <input
+                    className="border rounded px-3 py-1 flex-1 text-sm"
+                    value={val}
+                    onChange={(e) => setParamGrid({ ...paramGrid, [key]: e.target.value })}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Advanced Settings */}
         <div className="mb-4">
@@ -333,6 +409,11 @@ export default function OptimizePage() {
         {/* Progress */}
         {progress && (
           <div className="mt-4">
+            {sweepProgress && (
+              <div className="text-sm font-medium mb-2">
+                Strategy {sweepProgress.strategy_index}/{sweepProgress.total_strategies}: {sweepProgress.current_strategy}
+              </div>
+            )}
             <div className="flex justify-between text-sm mb-1">
               <span>
                 {progress.combo}/{progress.total} combinations
@@ -410,6 +491,139 @@ export default function OptimizePage() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Sweep Comparison Table */}
+      {sweepResults && sweepResults.by_strategy && (
+        <div className="bg-white rounded-lg shadow p-4 mb-6">
+          <h2 className="text-lg font-semibold mb-3">Strategy Comparison</h2>
+          {sweepResults.recommendation && sweepResults.recommendation.strategy_type && (
+            <div className="mb-3 p-3 bg-green-50 rounded text-sm">
+              <span className="font-medium">Recommended:</span>{" "}
+              {sweepResults.recommendation.strategy_type} (Sharpe: {sweepResults.recommendation.mean_sharpe.toFixed(3)}, Confidence: {sweepResults.recommendation.confidence})
+            </div>
+          )}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-500 border-b">
+                  <th className="py-2 px-2">Strategy</th>
+                  <th className="py-2 px-2">Best Sharpe</th>
+                  <th className="py-2 px-2">Best Return</th>
+                  <th className="py-2 px-2">Max DD</th>
+                  <th className="py-2 px-2">Best Params</th>
+                  <th className="py-2 px-2">Status</th>
+                  <th className="py-2 px-2">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(sweepResults.by_strategy)
+                  .sort(([, a], [, b]) => {
+                    const aS = a[0]?.mean_sharpe ?? -Infinity;
+                    const bS = b[0]?.mean_sharpe ?? -Infinity;
+                    return bS - aS;
+                  })
+                  .map(([st, stratResults]) => {
+                    const best = stratResults[0];
+                    const isRecommended = sweepResults.recommendation?.strategy_type === st;
+                    if (!best) return null;
+                    return (
+                      <tr key={st} className="border-t">
+                        <td className="py-2 px-2">
+                          <button
+                            className="text-blue-600 hover:underline font-medium"
+                            onClick={() => setExpandedStrategy(expandedStrategy === st ? null : st)}
+                          >
+                            {expandedStrategy === st ? "▼" : "▶"} {st}
+                          </button>
+                          {isRecommended && (
+                            <span className="ml-2 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
+                              Recommended
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2 px-2">{best.mean_sharpe.toFixed(3)}</td>
+                        <td className="py-2 px-2">{(best.mean_return * 100).toFixed(2)}%</td>
+                        <td className="py-2 px-2">{(best.max_drawdown * 100).toFixed(2)}%</td>
+                        <td className="py-2 px-2 text-xs font-mono">{JSON.stringify(best.params)}</td>
+                        <td className="py-2 px-2">
+                          {best.recommended === false ? (
+                            <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded">Not recommended</span>
+                          ) : (
+                            <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">OK</span>
+                          )}
+                        </td>
+                        <td className="py-2 px-2">
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => backtestWithParams(best.params, st)}
+                              className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200"
+                            >
+                              Backtest
+                            </button>
+                            <button
+                              onClick={() => saveAsStrategy(best.params, st)}
+                              className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded hover:bg-green-200"
+                            >
+                              Save as Strategy
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Expanded strategy detail */}
+          {expandedStrategy && sweepResults.by_strategy[expandedStrategy] && (
+            <div className="mt-4 border-t pt-4">
+              <h3 className="text-sm font-medium mb-2">Top results for {expandedStrategy}</h3>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500 border-b">
+                    <th className="py-1 px-2">Rank</th>
+                    <th className="py-1 px-2">Sharpe</th>
+                    <th className="py-1 px-2">Return</th>
+                    <th className="py-1 px-2">Max DD</th>
+                    <th className="py-1 px-2">Win Rate</th>
+                    <th className="py-1 px-2">Params</th>
+                    <th className="py-1 px-2">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sweepResults.by_strategy[expandedStrategy].map((r) => (
+                    <tr key={r.rank} className="border-t hover:bg-gray-50">
+                      <td className="py-1 px-2">{r.rank}</td>
+                      <td className="py-1 px-2">{r.mean_sharpe.toFixed(3)}</td>
+                      <td className="py-1 px-2">{(r.mean_return * 100).toFixed(2)}%</td>
+                      <td className="py-1 px-2">{(r.max_drawdown * 100).toFixed(2)}%</td>
+                      <td className="py-1 px-2">{(r.mean_win_rate * 100).toFixed(1)}%</td>
+                      <td className="py-1 px-2 text-xs font-mono">{JSON.stringify(r.params)}</td>
+                      <td className="py-1 px-2">
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => backtestWithParams(r.params, expandedStrategy)}
+                            className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200"
+                          >
+                            Backtest
+                          </button>
+                          <button
+                            onClick={() => saveAsStrategy(r.params, expandedStrategy)}
+                            className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded hover:bg-green-200"
+                          >
+                            Save as Strategy
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

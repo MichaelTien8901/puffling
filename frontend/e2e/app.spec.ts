@@ -338,6 +338,63 @@ test.describe("Optimize", () => {
     await expect(page.getByRole("button", { name: "Save as Strategy" }).first()).toBeVisible();
   });
 
+  test("auto mode hides param grid and shows note", async ({ page }) => {
+    await page.route("**/api/optimize/", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: "[]" })
+    );
+    await page.goto("/optimize");
+
+    // Select auto mode
+    await page.locator("select").selectOption("auto");
+
+    // Param grid should be hidden, auto note shown
+    await expect(page.getByText("Auto mode will evaluate all 4 strategy types")).toBeVisible();
+    await expect(page.getByText("short_window")).not.toBeVisible();
+
+    // Switch back to momentum — grid reappears
+    await page.locator("select").selectOption("momentum");
+    await expect(page.getByText("short_window")).toBeVisible();
+    await expect(page.getByText("Auto mode will evaluate all 4 strategy types")).not.toBeVisible();
+  });
+
+  test("sweep results show comparison table", async ({ page }) => {
+    const sweepResults = {
+      by_strategy: {
+        momentum: [
+          { rank: 1, params: { short_window: 10, long_window: 50 }, mean_sharpe: 1.45, mean_return: 0.12, max_drawdown: -0.08, mean_win_rate: 0.58, recommended: true, sharpe_std: 0.2 },
+        ],
+        mean_reversion: [
+          { rank: 1, params: { window: 20 }, mean_sharpe: 0.8, mean_return: 0.05, max_drawdown: -0.12, mean_win_rate: 0.52, recommended: true, sharpe_std: 0.5 },
+        ],
+        market_making: [
+          { rank: 1, params: { spread_bps: 10 }, mean_sharpe: -0.3, mean_return: -0.02, max_drawdown: -0.15, mean_win_rate: 0.45, recommended: false, sharpe_std: 0.1 },
+        ],
+      },
+      recommendation: { strategy_type: "momentum", best_params: { short_window: 10 }, mean_sharpe: 1.45, sharpe_std: 0.2, confidence: "high", recommended: true },
+    };
+
+    await page.route("**/api/optimize/sweep", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ job_id: 10, status: "running", strategy_types: ["momentum", "mean_reversion", "stat_arb", "market_making"] }) })
+    );
+    await page.route("**/api/optimize/10", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ status: "complete", job_type: "sweep", results: sweepResults }) })
+    );
+    await page.route("**/api/optimize/", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: "[]" })
+    );
+
+    await page.goto("/optimize");
+    await page.locator("select").selectOption("auto");
+    await page.getByRole("button", { name: "Run Optimization" }).click();
+
+    // Comparison table should appear
+    await expect(page.getByRole("heading", { name: "Strategy Comparison" })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Recommended")).toBeVisible();
+    await expect(page.getByText("momentum")).toBeVisible();
+    await expect(page.getByText("Not recommended")).toBeVisible();
+    await expect(page.getByText("1.450")).toBeVisible();
+  });
+
   test("optimization history displays with mocked jobs", async ({ page }) => {
     await page.route("**/api/optimize/", (route) =>
       route.fulfill({
