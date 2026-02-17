@@ -430,6 +430,26 @@ test.describe("Trades", () => {
     expect(hasEmptyState || hasTable).toBeTruthy();
   });
 
+  test("asset type selector shows conditional fields", async ({ page }) => {
+    await page.goto("/trades");
+    await expect(pageHeading(page)).toHaveText("Trades");
+
+    const assetSelect = page.locator('[data-testid="asset-type"]');
+    await expect(assetSelect).toBeVisible();
+
+    // Select Option — expiry, strike, right should appear
+    await assetSelect.selectOption("OPT");
+    await expect(page.locator('[data-testid="expiry"]')).toBeVisible();
+    await expect(page.locator('[data-testid="strike"]')).toBeVisible();
+    await expect(page.locator('[data-testid="right"]')).toBeVisible();
+
+    // Switch back to Stock — those fields should disappear
+    await assetSelect.selectOption("STK");
+    await expect(page.locator('[data-testid="expiry"]')).not.toBeVisible();
+    await expect(page.locator('[data-testid="strike"]')).not.toBeVisible();
+    await expect(page.locator('[data-testid="right"]')).not.toBeVisible();
+  });
+
   test("populated table and P&L with mocked data", async ({ page }) => {
     await page.route("**/api/monitor/trades", (route) =>
       route.fulfill({
