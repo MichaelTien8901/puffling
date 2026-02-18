@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { api } from "@/lib/api";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { useToast } from "@/hooks/useToast";
 
 interface PriceEntry {
   price: number;
@@ -26,6 +27,7 @@ export default function Dashboard() {
   const { lastMessage: priceMsg, send: priceSend } = useWebSocket("/ws/prices");
   const { lastMessage: tradeMsg, isConnected: tradeWsConnected } = useWebSocket("/ws/trades");
   const subscribedRef = useRef(false);
+  const { toast } = useToast();
 
   const subscribeToPrices = useCallback(() => {
     if (subscribedRef.current || !priceSend) return;
@@ -58,7 +60,7 @@ export default function Dashboard() {
   }, [priceMsg, subscribeToPrices]);
 
   useEffect(() => {
-    api.get<Record<string, unknown>[]>("/api/broker/positions").then(setPositions).catch(() => {});
+    api.get<Record<string, unknown>[]>("/api/broker/positions").then(setPositions).catch(() => toast.error("Failed to load positions"));
     api.get<Record<string, unknown>[]>("/api/monitor/trades").then(setTrades).catch(() => {});
     api.get<Record<string, unknown>[]>("/api/strategies/live/active").then(setActiveStrategies).catch(() => {});
     api.get<Record<string, unknown>[]>("/api/portfolio/goals/").then(setGoals).catch(() => {});

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { useToast } from "@/hooks/useToast";
 
 interface Job {
   id: number;
@@ -19,25 +20,41 @@ export default function SchedulerPage() {
   const [schedule, setSchedule] = useState("0 9 * * 1-5");
   const [config, setConfig] = useState('{"strategy_type":"momentum","symbols":["SPY"]}');
 
-  const load = () => api.get<Job[]>("/api/scheduler/").then(setJobs).catch(() => {});
+  const { toast } = useToast();
+
+  const load = () => api.get<Job[]>("/api/scheduler/").then(setJobs).catch(() => toast.error("Failed to load jobs"));
   useEffect(() => { load(); }, []);
 
   const create = async () => {
     let parsed: Record<string, unknown>;
     try { parsed = JSON.parse(config); } catch { return; }
-    await api.post("/api/scheduler/", { job_type: jobType, schedule, config: parsed });
-    setConfig('{}');
-    load();
+    try {
+      await api.post("/api/scheduler/", { job_type: jobType, schedule, config: parsed });
+      toast.success("Job created");
+      setConfig('{}');
+      load();
+    } catch {
+      toast.error("Failed to create job");
+    }
   };
 
   const toggle = async (id: number, enabled: boolean) => {
-    await api.put(`/api/scheduler/${id}`, { enabled: !enabled });
-    load();
+    try {
+      await api.put(`/api/scheduler/${id}`, { enabled: !enabled });
+      load();
+    } catch {
+      toast.error("Failed to update job");
+    }
   };
 
   const remove = async (id: number) => {
-    await api.delete(`/api/scheduler/${id}`);
-    load();
+    try {
+      await api.delete(`/api/scheduler/${id}`);
+      toast.success("Job deleted");
+      load();
+    } catch {
+      toast.error("Failed to delete job");
+    }
   };
 
   return (

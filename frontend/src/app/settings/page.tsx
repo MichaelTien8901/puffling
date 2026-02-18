@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { useToast } from "@/hooks/useToast";
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Record<string, unknown>>({});
   const [key, setKey] = useState("");
   const [value, setValue] = useState("");
+  const { toast } = useToast();
 
-  const load = () => api.get<Record<string, unknown>>("/api/settings/").then(setSettings).catch(() => {});
+  const load = () => api.get<Record<string, unknown>>("/api/settings/").then(setSettings).catch(() => toast.error("Failed to load settings"));
 
   useEffect(() => { load(); }, []);
 
@@ -16,20 +18,30 @@ export default function SettingsPage() {
     if (!key) return;
     let parsed: unknown;
     try { parsed = JSON.parse(value); } catch { parsed = value; }
-    await api.put("/api/settings/", { key, value: parsed });
-    setKey("");
-    setValue("");
-    load();
+    try {
+      await api.put("/api/settings/", { key, value: parsed });
+      toast.success("Setting saved");
+      setKey("");
+      setValue("");
+      load();
+    } catch {
+      toast.error("Failed to save setting");
+    }
   };
 
   const remove = async (k: string) => {
-    await api.delete(`/api/settings/${k}`);
-    load();
+    try {
+      await api.delete(`/api/settings/${k}`);
+      toast.success("Setting deleted");
+      load();
+    } catch {
+      toast.error("Failed to delete setting");
+    }
   };
 
   const [safety, setSafety] = useState<Record<string, unknown>>({});
 
-  const loadSafety = () => api.get<Record<string, unknown>>("/api/safety/").then(setSafety).catch(() => {});
+  const loadSafety = () => api.get<Record<string, unknown>>("/api/safety/").then(setSafety).catch(() => toast.error("Failed to load safety controls"));
 
   useEffect(() => { loadSafety(); }, []);
 

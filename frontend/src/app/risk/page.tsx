@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { api } from "@/lib/api";
+import { useToast } from "@/hooks/useToast";
 
 const METHOD_PARAMS: Record<string, string[]> = {
   fixed: ["size"],
@@ -11,6 +12,7 @@ const METHOD_PARAMS: Record<string, string[]> = {
 };
 
 export default function RiskPage() {
+  const { toast } = useToast();
   const [method, setMethod] = useState("percent_risk");
   const [params, setParams] = useState<Record<string, string>>({});
   const [sizeResult, setSizeResult] = useState<Record<string, unknown> | null>(null);
@@ -33,7 +35,9 @@ export default function RiskPage() {
         params: numParams,
       });
       setSizeResult(res);
+      toast.success("Position size calculated");
     } catch {
+      toast.error("Position size calculation failed");
       setSizeResult({ error: "Calculation failed" });
     }
   };
@@ -54,7 +58,9 @@ export default function RiskPage() {
         end: riskEnd,
       });
       setRiskResult(res);
+      toast.success("Portfolio risk computed");
     } catch {
+      toast.error("Risk calculation failed");
       setRiskResult({ error: "Risk calculation failed" });
     }
   };

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { useToast } from "@/hooks/useToast";
 
 const DEFAULT_GRIDS: Record<string, Record<string, (number | string)[]>> = {
   momentum: {
@@ -97,6 +98,7 @@ export default function OptimizePage() {
   const [adaptHistory, setAdaptHistory] = useState<Record<string, unknown>[]>([]);
 
   const isAutoMode = strategyType === "auto";
+  const { toast } = useToast();
 
   const { lastMessage } = useWebSocket("/ws/optimize");
 
@@ -116,25 +118,31 @@ export default function OptimizePage() {
 
   // Load job history
   useEffect(() => {
-    api.get<JobSummary[]>("/api/optimize/").then(setJobs).catch(() => {});
+    api.get<JobSummary[]>("/api/optimize/").then(setJobs).catch(() => toast.error("Failed to load optimization history"));
   }, []);
 
   const loadAdaptations = () => {
-    api.get<Record<string, unknown>[]>("/api/optimize/live").then(setAdaptations).catch(() => {});
+    api.get<Record<string, unknown>[]>("/api/optimize/live").then(setAdaptations).catch(() => toast.error("Failed to load adaptations"));
   };
 
   const createAdaptation = async () => {
     try {
       await api.post("/api/optimize/live", { strategy_type: adaptStrategy });
+      toast.success("Adaptation created");
       loadAdaptations();
-    } catch {}
+    } catch {
+      toast.error("Failed to create adaptation");
+    }
   };
 
   const stopAdaptation = async (id: number) => {
     try {
       await api.delete(`/api/optimize/live/${id}`);
+      toast.success("Adaptation stopped");
       loadAdaptations();
-    } catch {}
+    } catch {
+      toast.error("Failed to stop adaptation");
+    }
   };
 
   const loadAdaptHistory = async (id: number) => {
@@ -244,9 +252,9 @@ export default function OptimizePage() {
           setRunning(false);
         }
       }, 3000);
-    } catch (e) {
+    } catch {
       setRunning(false);
-      console.error(e);
+      toast.error("Failed to start optimization");
     }
   };
 
@@ -266,7 +274,9 @@ export default function OptimizePage() {
           setSweepResults(null);
         }
       }
-    } catch {}
+    } catch {
+      toast.error("Failed to load job results");
+    }
   };
 
   const cancelJob = async () => {
@@ -311,9 +321,9 @@ export default function OptimizePage() {
         strategy_type: st,
         params,
       });
-      alert("Strategy saved!");
+      toast.success("Strategy saved!");
     } catch {
-      alert("Failed to save strategy");
+      toast.error("Failed to save strategy");
     }
   };
 

@@ -214,3 +214,20 @@ Requires: `docker compose up -d backend frontend`
 | 43 | Dashboard Account | account panel handles broker error | "Broker not connected" on API error |
 | 44 | Optimize Live Adaptation | live adaptation section renders | Adaptation table from mocked API |
 | 45 | Backtest Progress | progress indicator shows during backtest | Progress bar after mocked submit |
+
+## Roadmap
+
+### Production Readiness
+- **Real broker integration testing** — Test Alpaca/IBKR price streaming and order flow with paper trading credentials
+- **Tauri desktop build** — Wire the `desktop/` shell with the latest frontend + FastAPI sidecar
+- **Authentication** — Add login flow for deployment beyond localhost (currently single-user with default user_id)
+
+### Feature Depth
+- **AI agent tool-use expansion** — Give the agent more Puffin tools (run backtests, adjust strategies, analyze risk)
+- **Real-time backtest streaming** — Wire `/ws/backtest/{id}` to stream progress from long-running backtests (currently returns synchronously)
+- **Desktop notifications** — Push alert notifications via Tauri native APIs
+
+### Polish
+- **Toast notifications** — Replace silent error swallowing with user-visible toast messages across all pages
+- **Configurable dashboard** — Draggable/resizable panel grid for the 8-panel dashboard
+- **Mobile responsive** — Test and tune grid layouts for small screens

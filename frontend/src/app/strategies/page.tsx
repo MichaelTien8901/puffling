@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { useToast } from "@/hooks/useToast";
 
 interface StrategyConfig {
   id: number;
@@ -14,20 +15,31 @@ export default function StrategiesPage() {
   const [configs, setConfigs] = useState<StrategyConfig[]>([]);
   const [name, setName] = useState("");
   const [strategyType, setStrategyType] = useState("momentum");
+  const { toast } = useToast();
 
-  const load = () => api.get<StrategyConfig[]>("/api/strategies/").then(setConfigs).catch(() => {});
+  const load = () => api.get<StrategyConfig[]>("/api/strategies/").then(setConfigs).catch(() => toast.error("Failed to load strategies"));
 
   useEffect(() => { load(); }, []);
 
   const create = async () => {
-    await api.post("/api/strategies/", { name, strategy_type: strategyType, params: {} });
-    setName("");
-    load();
+    try {
+      await api.post("/api/strategies/", { name, strategy_type: strategyType, params: {} });
+      toast.success("Strategy created");
+      setName("");
+      load();
+    } catch {
+      toast.error("Failed to create strategy");
+    }
   };
 
   const remove = async (id: number) => {
-    await api.delete(`/api/strategies/${id}`);
-    load();
+    try {
+      await api.delete(`/api/strategies/${id}`);
+      toast.success("Strategy deleted");
+      load();
+    } catch {
+      toast.error("Failed to delete strategy");
+    }
   };
 
   return (

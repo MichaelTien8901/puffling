@@ -104,6 +104,26 @@ AI_TOOL_SCHEMAS = [
             "required": ["symbols", "weights", "start", "end"],
         },
     },
+    {
+        "name": "get_position_size",
+        "description": "Calculate position size using a given method (fixed_fractional, kelly, volatility)",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "method": {"type": "string", "enum": ["fixed_fractional", "kelly", "volatility"]},
+                "params": {"type": "object", "description": "Method-specific parameters"},
+            },
+            "required": ["method", "params"],
+        },
+    },
+    {
+        "name": "get_account_info",
+        "description": "Get current broker account info (equity, cash, buying power)",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+        },
+    },
 ]
 
 
@@ -147,5 +167,13 @@ def execute_tool(tool_name: str, args: dict, user_id: str, db) -> dict:
     elif tool_name == "check_risk":
         from backend.services.risk_service import RiskService
         return RiskService().portfolio_risk(args["symbols"], args["weights"], args["start"], args["end"])
+
+    elif tool_name == "get_position_size":
+        from backend.services.risk_service import RiskService
+        return RiskService().position_size(args["method"], **args.get("params", {}))
+
+    elif tool_name == "get_account_info":
+        from backend.services.broker_service import BrokerService
+        return BrokerService(db).get_account()
 
     return {"error": f"Unknown tool: {tool_name}"}

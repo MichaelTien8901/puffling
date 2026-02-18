@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { api } from "@/lib/api";
+import { useToast } from "@/hooks/useToast";
 
 export default function BacktestPage() {
   const [strategyType, setStrategyType] = useState("momentum");
@@ -12,6 +13,7 @@ export default function BacktestPage() {
   const [loading, setLoading] = useState(false);
   const [wsProgress, setWsProgress] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     return () => { wsRef.current?.close(); };
@@ -50,8 +52,8 @@ export default function BacktestPage() {
       if (res.id) connectProgress(Number(res.id));
       setResults(res);
       setWsProgress(null);
-    } catch (e) {
-      console.error(e);
+    } catch {
+      toast.error("Backtest failed");
       setWsProgress(null);
     }
     wsRef.current?.close();

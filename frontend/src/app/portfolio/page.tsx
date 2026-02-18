@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 import { api } from "@/lib/api";
+import { useToast } from "@/hooks/useToast";
 
 export default function PortfolioPage() {
+  const { toast } = useToast();
+
   // Optimization
   const [optSymbols, setOptSymbols] = useState("AAPL, GOOGL, MSFT");
   const [optStart, setOptStart] = useState("2023-01-01");
@@ -34,7 +37,9 @@ export default function PortfolioPage() {
         method: optMethod,
       });
       setOptResult(res);
+      toast.success("Portfolio optimized");
     } catch {
+      toast.error("Optimization failed");
       setOptError("Optimization failed");
     }
   };
@@ -44,7 +49,9 @@ export default function PortfolioPage() {
       const vals = returns.split(",").map((s) => Number(s.trim())).filter((n) => !isNaN(n));
       const res = await api.post<Record<string, unknown>>("/api/portfolio/tearsheet", { returns: vals });
       setTearsheet(res);
+      toast.success("Tearsheet generated");
     } catch {
+      toast.error("Tearsheet generation failed");
       setTearsheet({ error: "Tearsheet generation failed" });
     }
   };
@@ -57,7 +64,9 @@ export default function PortfolioPage() {
         end: facEnd,
       });
       setFacResult(res);
+      toast.success("Factors computed");
     } catch {
+      toast.error("Factor computation failed");
       setFacResult({ error: "Factor computation failed" });
     }
   };
@@ -71,7 +80,9 @@ export default function PortfolioPage() {
         n_components: nComponents,
       });
       setPcaResult(res);
+      toast.success("PCA risk factors computed");
     } catch {
+      toast.error("PCA computation failed");
       setPcaResult({ error: "PCA computation failed" });
     }
   };

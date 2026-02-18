@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { useToast } from "@/hooks/useToast";
 
 type AssetType = "STK" | "OPT" | "FUT" | "CASH";
 
@@ -31,12 +32,13 @@ export default function TradesPage() {
   const [submitting, setSubmitting] = useState(false);
   const [orderResult, setOrderResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [pendingOrder, setPendingOrder] = useState<Record<string, unknown> | null>(null);
+  const { toast } = useToast();
 
   const showAdvanced = assetType !== "STK" || orderType !== "market";
 
   const loadData = () => {
-    api.get<Record<string, unknown>[]>("/api/monitor/trades").then(setTrades).catch(() => {});
-    api.get<Record<string, unknown>>("/api/monitor/pnl").then(setPnl).catch(() => {});
+    api.get<Record<string, unknown>[]>("/api/monitor/trades").then(setTrades).catch(() => toast.error("Failed to load trades"));
+    api.get<Record<string, unknown>>("/api/monitor/pnl").then(setPnl).catch(() => toast.error("Failed to load P&L"));
   };
 
   useEffect(() => { loadData(); }, []);
@@ -89,6 +91,7 @@ export default function TradesPage() {
     try {
       const res = await api.post<Record<string, unknown>>("/api/broker/order", pendingOrder);
       const summary = res.summary ? String(res.summary) : `${pendingOrder.side} ${pendingOrder.qty} ${pendingOrder.symbol}`;
+      toast.success(`Order submitted: ${summary}`);
       setOrderResult({ ok: true, message: `Order submitted: ${summary}` });
       setSymbol("");
       setQty("");
@@ -100,6 +103,7 @@ export default function TradesPage() {
       setStopPrice("");
       setTimeout(loadData, 2000);
     } catch {
+      toast.error("Order failed. Check broker connection and inputs.");
       setOrderResult({ ok: false, message: "Order failed. Check broker connection and inputs." });
     }
     setSubmitting(false);

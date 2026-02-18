@@ -84,6 +84,13 @@ class AutonomousAgentService:
             context["positions"] = []
 
         try:
+            from backend.services.broker_service import BrokerService
+            broker = BrokerService(self.db)
+            context["account"] = broker.get_account()
+        except Exception:
+            context["account"] = {}
+
+        try:
             from backend.services.alert_service import AlertService
             alert_svc = AlertService(self.db)
             history = alert_svc.get_history(user_id, limit=10)
@@ -98,19 +105,54 @@ class AutonomousAgentService:
         except Exception:
             context["active_strategies"] = []
 
+        # Risk check on current positions
+        positions = context.get("positions", [])
+        if positions:
+            try:
+                from backend.services.risk_service import RiskService
+                symbols = [p["symbol"] for p in positions if p.get("symbol")]
+                if symbols:
+                    n = len(symbols)
+                    weights = [1.0 / n] * n
+                    today = datetime.utcnow().strftime("%Y-%m-%d")
+                    start = (datetime.utcnow().replace(year=datetime.utcnow().year - 1)).strftime("%Y-%m-%d")
+                    risk_svc = RiskService()
+                    context["portfolio_risk"] = risk_svc.portfolio_risk(symbols, weights, start, today)
+            except Exception as e:
+                logger.debug(f"Risk check failed: {e}")
+                context["portfolio_risk"] = {}
+
+        # Factor analysis on top holdings
+        if positions:
+            try:
+                from backend.services.factors_service import FactorsService
+                symbols = [p["symbol"] for p in positions if p.get("symbol")][:5]
+                if symbols:
+                    today = datetime.utcnow().strftime("%Y-%m-%d")
+                    start = (datetime.utcnow().replace(year=datetime.utcnow().year - 1)).strftime("%Y-%m-%d")
+                    factors_svc = FactorsService()
+                    context["factor_exposure"] = factors_svc.compute(symbols, start, today)
+            except Exception as e:
+                logger.debug(f"Factor analysis failed: {e}")
+                context["factor_exposure"] = {}
+
         return context
 
     def _analyze(self, context: dict, user_id: str) -> dict:
         prompt = f"""You are an autonomous trading agent. Analyze the current portfolio and market conditions.
 
 Current portfolio positions: {json.dumps(context.get('positions', []))}
+Account info: {json.dumps(context.get('account', {}))}
 Active strategies: {json.dumps(context.get('active_strategies', []))}
 Recent alerts: {json.dumps(context.get('recent_alerts', []))}
+Portfolio risk metrics: {json.dumps(context.get('portfolio_risk', {}))}
+Factor exposure: {json.dumps(context.get('factor_exposure', {}))}
 
 Provide:
 1. A brief market analysis
-2. Portfolio assessment
-3. Any suggested actions (buy/sell/rebalance)
+2. Portfolio assessment including risk metrics interpretation
+3. Factor exposure analysis
+4. Any suggested actions (buy/sell/rebalance)
 
 Be conservative and risk-aware."""
 
