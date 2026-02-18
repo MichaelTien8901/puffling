@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -23,7 +24,9 @@ export default function Sidebar() {
 
   return (
     <nav className="w-56 bg-gray-900 text-white min-h-screen p-4 flex flex-col gap-1">
-      <h1 className="text-xl font-bold mb-6 px-3">Puffling</h1>
+      <div className="mb-6 px-3">
+        <Image src="/puffling_logo.png" alt="Puffling" width={200} height={105} priority />
+      </div>
       {navItems.map((item) => (
         <Link
           key={item.href}
